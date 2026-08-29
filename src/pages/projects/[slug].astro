@@ -1,0 +1,70 @@
+---
+// 项目详情页:照片 + 故事(PRD V1.1 §4.3)——
+// 项目标题 + 拍摄手记(Markdown)+ 照片瀑布流,点击开灯箱
+import { getCollection } from "astro:content";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import Lightbox from "../../components/Lightbox.astro";
+import { resolveImage, cloudinaryUrl } from "../../lib/images";
+
+export async function getStaticPaths() {
+  const projects = await getCollection("projects");
+  return projects.map((p) => ({
+    params: { slug: p.id },
+    props: { project: p },
+  }));
+}
+
+const { project } = Astro.props;
+
+const photos = (await getCollection("photos"))
+  .filter((p) => p.data.project === project.id)
+  .sort((a, b) => b.data.date.localeCompare(a.data.date));
+
+const lightboxPhotos = photos.map((p) => ({
+  src: cloudinaryUrl(p.data.filename, 1600),
+  title: p.data.title,
+  exif: p.data.exif,
+}));
+---
+
+<BaseLayout title={`${project.data.title} · 夏至未至`}>
+  <article class="mx-auto w-full max-w-5xl px-5">
+    <nav class="pt-2 text-xs text-mist">
+      <a href="/projects/" class="transition-colors hover:text-ink">← 全部项目</a>
+    </nav>
+
+    <header class="mx-auto max-w-2xl pb-14 pt-10 text-center">
+      <h1 class="text-3xl font-light tracking-wide">{project.data.title}</h1>
+      <p class="mt-3 text-xs tracking-wide text-mist">
+        {project.data.date}
+        {project.data.location ? ` · ${project.data.location}` : ""}
+      </p>
+    </header>
+
+    <!-- 照片集:瀑布流保留原始比例(拍摄手记文字已隐藏) -->
+    <div class="columns-1 gap-6 pb-28 sm:columns-2 lg:columns-3">
+      {
+        photos.map((p, i) => (
+          <button
+            class="lightbox-trigger group mb-6 block w-full break-inside-avoid text-left"
+            data-index={i}
+            aria-label={`查看大图:${p.data.title}`}
+          >
+            <div class="overflow-hidden bg-neutral-100">
+              <img
+                src={resolveImage(p.data.filename)}
+                alt={p.data.alt ?? p.data.title}
+                loading="lazy"
+                decoding="async"
+                class="h-auto w-full transition-transform duration-700 ease-out group-hover:scale-[1.03]"
+              />
+            </div>
+            <span class="mt-3 block text-sm text-ink/85">{p.data.title}</span>
+          </button>
+        ))
+      }
+    </div>
+  </article>
+
+  <Lightbox photos={lightboxPhotos} />
+</BaseLayout>

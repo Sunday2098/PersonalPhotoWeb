@@ -1,0 +1,36 @@
+---
+// 项目列表:作品集的核心组织方式(PRD V1.1 §4.2)
+import { getCollection } from "astro:content";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import ProjectCard from "../../components/ProjectCard.astro";
+
+const projects = (await getCollection("projects")).sort((a, b) =>
+  b.data.date.localeCompare(a.data.date),
+);
+---
+
+<BaseLayout title="项目 · 夏至未至">
+  <section class="mx-auto w-full max-w-5xl px-5">
+    <header class="pb-14 pt-4">
+      <h1 class="text-2xl font-light tracking-wide">项目</h1>
+      <p class="mt-4 max-w-xl text-sm leading-relaxed text-mist">
+        每一组照片,都是一段时光的存档。像一页页私人笔记——
+        点击进入,照片与文字一起,讲完那个故事。
+      </p>
+    </header>
+
+    <div class="grid grid-cols-1 gap-x-10 gap-y-14 pb-24 sm:grid-cols-2">
+      {
+        projects.map((p) => (
+          <ProjectCard
+            slug={p.id}
+            title={p.data.title}
+            date={p.data.date}
+            location={p.data.location}
+            coverImage={p.data.coverImage}
+          />
+        ))
+      }
+    </div>
+  </section>
+</BaseLayout>

@@ -1,0 +1,147 @@
+---
+// 全屏灯箱(PRD V1.1 §4.4)
+// 用法:页面渲染 <Lightbox photos={[{ src, title, exif }]} />,
+// 再给任意缩略图容器加 class="lightbox-trigger" data-index={i},
+// 点击即在该处打开灯箱(同页共享一个实例)。
+// src 为 Cloudinary 大图 URL(1600w,由页面传入)
+
+interface ExifInfo {
+  camera?: string;
+  focalLength?: string;
+  iso?: number;
+}
+
+interface LightboxPhoto {
+  src: string;
+  title: string;
+  exif?: ExifInfo;
+}
+
+interface Props {
+  photos: LightboxPhoto[];
+}
+
+const { photos } = Astro.props;
+---
+
+<div
+  id="lightbox"
+  class="lightbox fixed inset-0 z-50 flex items-center justify-center bg-white"
+  role="dialog"
+  aria-modal="true"
+  aria-label="照片浏览"
+  aria-hidden="true"
+>
+  <img
+    id="lb-img"
+    src=""
+    alt=""
+    class="max-h-[80vh] max-w-[92vw] select-none object-contain"
+    draggable="false"
+  />
+  <p
+    id="lb-caption"
+    class="absolute inset-x-0 bottom-8 text-center text-xs tracking-wide text-ink/70"
+  ></p>
+  <button
+    id="lb-prev"
+    class="absolute left-4 top-1/2 -translate-y-1/2 p-3 text-2xl text-ink/60 transition-colors hover:text-ink"
+    aria-label="上一张"
+  >
+    &larr;
+  </button>
+  <button
+    id="lb-next"
+    class="absolute right-4 top-1/2 -translate-y-1/2 p-3 text-2xl text-ink/60 transition-colors hover:text-ink"
+    aria-label="下一张"
+  >
+    &rarr;
+  </button>
+  <button
+    id="lb-close"
+    class="absolute right-5 top-5 p-2 text-2xl text-ink/60 transition-colors hover:text-ink"
+    aria-label="关闭"
+  >
+    &times;
+  </button>
+</div>
+
+<script define:vars={{ photos }}>
+  // 注意:define:vars 的内联脚本不经过 esbuild,必须写纯 JS(无 TS 注解)
+  const box = document.getElementById("lightbox");
+  const img = document.getElementById("lb-img");
+  const caption = document.getElementById("lb-caption");
+  const prevBtn = document.getElementById("lb-prev");
+  const nextBtn = document.getElementById("lb-next");
+  const closeBtn = document.getElementById("lb-close");
+
+  let index = 0;
+  let touchX = 0;
+
+  // 灯箱说明只显示标题(EXIF 信息不对外展示;数据仍保留在 content 里)
+  function captionText(p) {
+    return p.title;
+  }
+
+  function show(i) {
+    index = (i + photos.length) % photos.length;
+    img.src = photos[index].src;
+    img.alt = photos[index].title;
+    caption.textContent = captionText(photos[index]);
+  }
+
+  function open(i) {
+    show(i);
+    box.classList.add("open");
+    box.setAttribute("aria-hidden", "false");
+    document.body.style.overflow = "hidden";
+  }
+
+  function close() {
+    box.classList.remove("open");
+    box.setAttribute("aria-hidden", "true");
+    document.body.style.overflow = "";
+  }
+
+  function step(delta) {
+    show(index + delta);
+  }
+
+  // 页面上的触发按钮(.lightbox-trigger)
+  document.querySelectorAll(".lightbox-trigger").forEach((el) => {
+    el.addEventListener("click", () => {
+      const i = Number(el.dataset.index ?? 0);
+      if (photos[i]) open(i);
+    });
+  });
+
+  // 大图加载占位(加载完成前图片区域显示浅色底,配合白色灯箱背景)
+  img.addEventListener("load", () => img.classList.add("loaded"));
+  img.classList.add("bg-neutral-100");
+
+  prevBtn?.addEventListener("click", (e) => { e.stopPropagation(); step(-1); });
+  nextBtn?.addEventListener("click", (e) => { e.stopPropagation(); step(1); });
+  closeBtn?.addEventListener("click", (e) => { e.stopPropagation(); close(); });
+
+  // 点击背景关闭
+  box.addEventListener("click", (e) => {
+    if (e.target === box) close();
+  });
+
+  // 键盘
+  document.addEventListener("keydown", (e) => {
+    if (!box.classList.contains("open")) return;
+    if (e.key === "Escape") close();
+    if (e.key === "ArrowLeft") step(-1);
+    if (e.key === "ArrowRight") step(1);
+  });
+
+  // 触屏滑动切换
+  box.addEventListener("touchstart", (e) => {
+    touchX = e.changedTouches[0].clientX;
+  });
+  box.addEventListener("touchend", (e) => {
+    const dx = e.changedTouches[0].clientX - touchX;
+    if (Math.abs(dx) > 40) step(dx < 0 ? 1 : -1);
+  });
+</script>

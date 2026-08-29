@@ -1,0 +1,83 @@
+---
+import "../styles/global.css";
+
+interface Props {
+  title?: string;
+  description?: string;
+}
+
+const {
+  title = "夏至未至 · 摄影手记",
+  description = "用照片记录走过的路、看过的风景和日常的瞬间。",
+} = Astro.props;
+
+const pathname = Astro.url.pathname.replace(/\/$/, "") || "/";
+
+const nav = [
+  { href: "/", label: "首页", match: (p: string) => p === "/" },
+  { href: "/projects/", label: "项目", match: (p: string) => p.startsWith("/projects") },
+  { href: "/about/", label: "关于", match: (p: string) => p.startsWith("/about") },
+];
+
+// 社交入口(PRD V1.1 §4.6)—— TODO: 替换为你的真实链接
+const socials = [
+  { href: "https://www.instagram.com/", label: "Instagram" },
+  { href: "https://www.xiaohongshu.com/", label: "小红书" },
+];
+---
+
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content={description} />
+    <meta name="color-scheme" content="light" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>{title}</title>
+  </head>
+  <body class="flex min-h-screen flex-col">
+    <header class="mx-auto w-full max-w-5xl px-5">
+      <div class="flex items-baseline justify-between py-10">
+        <a href="/" class="text-base font-medium tracking-wide">夏至未至</a>
+        <nav class="flex items-baseline gap-6">
+          {
+            nav.map((item) => (
+              <a
+                href={item.href}
+                class:list={[
+                  "text-sm transition-colors",
+                  item.match(pathname)
+                    ? "font-medium text-ink underline underline-offset-4 decoration-terra/60"
+                    : "text-mist",
+                ]}
+              >
+                {item.label}
+              </a>
+            ))
+          }
+        </nav>
+      </div>
+    </header>
+
+    <main class="flex-1">
+      <slot />
+    </main>
+
+    <footer class="mx-auto w-full max-w-5xl px-5 pt-20 pb-12">
+      <div class="flex flex-col items-center gap-4 border-t border-neutral-200/80 pt-8">
+        <div class="flex gap-6 text-xs text-mist">
+          {
+            socials.map((s) => (
+              <a href={s.href} target="_blank" rel="noopener" class="transition-colors hover:text-ink">
+                {s.label}
+              </a>
+            ))
+          }
+          <a href="mailto:hello@yourdomain.com" class="transition-colors hover:text-ink">邮箱</a>
+        </div>
+        <p class="text-xs text-mist/70">© 2026 夏至未至 · 用照片记录走过的路</p>
+      </div>
+    </footer>
+  </body>
+</html>

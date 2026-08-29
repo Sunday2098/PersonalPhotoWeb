@@ -1,0 +1,35 @@
+---
+// 项目卡片:封面 + 标题 + 时间/地点(Tom Hull 式项目组织)
+import { resolveImage, cloudinaryUrl } from "../lib/images";
+
+interface Props {
+  slug: string;
+  title: string;
+  date: string;
+  location?: string;
+  coverImage: string;
+}
+
+const { slug, title, date, location, coverImage } = Astro.props;
+const cover = cloudinaryUrl(coverImage, 1200);
+---
+
+<a
+  href={`/projects/${slug}/`}
+  class="group block"
+>
+  <div class="overflow-hidden bg-neutral-100">
+    <img
+      src={cover}
+      alt={title}
+      loading="lazy"
+      decoding="async"
+      class="aspect-[3/2] w-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.03]"
+    />
+  </div>
+  <h2 class="mt-4 text-lg font-medium">{title}</h2>
+  <p class="mt-2 text-xs tracking-wide text-mist/80">
+    {date}
+    {location ? ` · ${location}` : ""}
+  </p>
+</a>

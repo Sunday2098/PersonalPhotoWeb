@@ -1,0 +1,21 @@
+# 依赖
+node_modules/
+
+# 构建产物
+dist/
+.astro/
+
+# 密钥 —— 绝不可提交
+.env
+.env.*
+
+# 待处理照片与本地图片(照片只存在 Cloudinary)
+inbox/
+src/assets/photos/
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# 测试截图
+.test-*.png

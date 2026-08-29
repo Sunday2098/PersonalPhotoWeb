@@ -1,0 +1,62 @@
+---
+// 首页:近期精选照片流(PRD V1.1 §4.1),时间倒序,点击开灯箱
+import { getCollection } from "astro:content";
+import BaseLayout from "../layouts/BaseLayout.astro";
+import Lightbox from "../components/Lightbox.astro";
+import { resolveImage, cloudinaryUrl } from "../lib/images";
+
+const photos = (await getCollection("photos")).sort((a, b) =>
+  b.data.date.localeCompare(a.data.date),
+);
+const recent = photos.slice(0, 8);
+
+// 灯箱大图:Cloudinary 1600w URL(构建零图片依赖)
+const lightboxPhotos = recent.map((p) => ({
+  src: cloudinaryUrl(p.data.filename, 1600),
+  title: p.data.title,
+  exif: p.data.exif,
+}));
+---
+
+<BaseLayout>
+  <section class="mx-auto w-full max-w-5xl px-5">
+    <div class="mx-auto max-w-xl pb-16 pt-8 text-center">
+      <p class="leading-relaxed text-mist">
+        用照片记录走过的路、看过的风景和日常的瞬间。
+        按下快门时的心情,都写在项目的手记里。
+      </p>
+      <p class="mt-3 text-xs tracking-wide text-mist/70">
+        最近更新 · 点击照片可放大浏览
+      </p>
+    </div>
+
+    <div class="grid grid-cols-1 gap-x-8 gap-y-10 pb-24 sm:grid-cols-2 lg:grid-cols-3">
+      {
+        recent.map((p, i) => (
+          <button
+            class="lightbox-trigger group block text-left"
+            data-index={i}
+            aria-label={`查看大图:${p.data.title}`}
+          >
+            <div class="overflow-hidden bg-neutral-100">
+              <img
+                src={resolveImage(p.data.filename)}
+                alt={p.data.alt ?? p.data.title}
+                loading="lazy"
+                decoding="async"
+                class="aspect-[3/2] w-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.03]"
+              />
+            </div>
+            <span
+              class="mt-3 block text-sm text-ink opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+            >
+              {p.data.title}
+            </span>
+          </button>
+        ))
+      }
+    </div>
+  </section>
+
+  <Lightbox photos={lightboxPhotos} />
+</BaseLayout>

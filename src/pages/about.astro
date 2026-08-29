@@ -1,0 +1,45 @@
+---
+// 关于我:个人介绍与摄影历程(PRD V1.1 §4.5)
+import BaseLayout from "../layouts/BaseLayout.astro";
+---
+
+<BaseLayout title="关于 · 夏至未至">
+  <section class="mx-auto w-full max-w-3xl px-5 py-10">
+    <!-- TODO: 放入你的肖像/拍摄中的身影照片,并取消下面的注释
+    <Image
+      src={resolveImage("your-portrait.jpg")}
+      alt="我的身影"
+      width={900}
+      format="webp"
+      class="mb-14 h-auto w-full max-w-sm"
+    />
+    -->
+
+    <h1 class="text-2xl font-light tracking-wide">关于</h1>
+
+    <div class="story mt-8 text-[15px]">
+      <!-- TODO: 替换为你的自我介绍 -->
+      <p>
+        你好,我是夏至未至。按下快门这件事,对我来说更像写日记——
+        不是为了拍得多好看,而是想把那些会溜走的瞬间留下来:
+        山里的雨停了,湖面的风起了,林间的它回头了。
+      </p>
+      <p>
+        这个网站像一本可以翻阅的私人笔记本:每一个项目,是一段时光的存档;
+        每一段手记,是按下快门那一刻的心情。如果你恰好也被某张照片打动,
+        那大概就是我们之间的一点共鸣。
+      </p>
+    </div>
+
+    <h2 class="mt-14 text-base font-medium">常用器材</h2>
+    <!-- TODO: 替换为你的真实器材清单 -->
+    <ul class="mt-4 space-y-2 text-sm text-mist">
+      <li>尼康 Z 5</li>
+      <li>200mm 长焦镜头(长焦端等待,是拍摄里最有耐心的部分)</li>
+    </ul>
+
+    <div class="mt-16 border-t border-neutral-200/80 pt-6 text-xs text-mist">
+      <p>联系方式见页脚 · 也欢迎在 Instagram / 小红书找到我</p>
+    </div>
+  </section>
+</BaseLayout>

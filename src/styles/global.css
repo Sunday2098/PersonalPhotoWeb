@@ -1,0 +1,62 @@
+@import "@fontsource-variable/inter";
+@import "tailwindcss";
+
+/* 设计基调:Anna Venezia 优雅极简(PRD V1.1 §1.2 / §3)
+   米白 #FAFAF8 大面积留白,文字 #1A1A1A,辅助 #8A8A8A,陶土 #C4A882 点缀 */
+@theme {
+  --color-cream: #fafaf8;
+  --color-ink: #1a1a1a;
+  --color-mist: #8a8a8a;
+  --color-terra: #c4a882;
+  --font-sans:
+    "Inter Variable", Inter, "PingFang SC", "Hiragino Sans GB",
+    "Source Han Sans SC", "Noto Sans SC", "Microsoft YaHei", system-ui,
+    sans-serif;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  @apply bg-cream text-ink font-sans antialiased;
+  font-size: 15px;
+  line-height: 1.8;
+}
+
+::selection {
+  background: #1a1a1a;
+  color: #fafaf8;
+}
+
+/* 链接:陶土色 hover 点缀(PRD §3.1) */
+a {
+  transition: color 0.2s ease;
+}
+a:hover {
+  color: #c4a882;
+}
+
+/* 灯箱:淡入淡出 */
+.lightbox {
+  visibility: hidden;
+  opacity: 0;
+  transition:
+    opacity 0.3s ease,
+    visibility 0.3s ease;
+}
+.lightbox.open {
+  visibility: visible;
+  opacity: 1;
+}
+
+/* 拍摄手记(Markdown 渲染) */
+.story p {
+  @apply mb-5 leading-loose text-ink/90;
+}
+.story blockquote {
+  @apply mb-5 border-l-2 border-terra/60 pl-5 text-mist;
+}
+.story strong {
+  @apply font-medium text-ink;
+}
