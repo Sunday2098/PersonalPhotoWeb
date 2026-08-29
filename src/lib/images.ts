@@ -6,8 +6,10 @@
 // Cloud Name 通过构建环境变量注入(Vercel 配置,本地 .env),非敏感信息。
 const CLOUD_NAME = import.meta.env.PUBLIC_CLOUDINARY_CLOUD_NAME ?? "";
 
+// public_id 统一不带扩展名(Cloudinary 自动加格式后缀,f_auto 忽略之)
 export function cloudinaryUrl(filename: string, width: number): string {
-  return `https://res.cloudinary.com/${CLOUD_NAME}/image/upload/f_auto,q_auto,w_${width}/photos/${filename}`;
+  const id = filename.replace(/\.[^.]+$/, "");
+  return `https://res.cloudinary.com/${CLOUD_NAME}/image/upload/f_auto,q_auto,w_${width}/photos/${id}`;
 }
 
 // 缩略图入口(函数名/参数与旧实现一致,组件无需感知迁移)
