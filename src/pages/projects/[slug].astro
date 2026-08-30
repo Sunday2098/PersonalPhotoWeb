@@ -18,7 +18,7 @@ const { project } = Astro.props;
 
 const photos = (await getCollection("photos"))
   .filter((p) => p.data.project === project.id)
-  .sort((a, b) => b.data.date.localeCompare(a.data.date));
+  .sort((a, b) => (b.data.date ?? "").localeCompare(a.data.date ?? ""));
 
 const lightboxPhotos = photos.map((p) => ({
   src: cloudinaryUrl(p.data.filename, 1600),
@@ -35,10 +35,6 @@ const lightboxPhotos = photos.map((p) => ({
 
     <header class="mx-auto max-w-2xl pb-14 pt-10 text-center">
       <h1 class="text-3xl font-light tracking-wide">{project.data.title}</h1>
-      <p class="mt-3 text-xs tracking-wide text-mist">
-        {project.data.date}
-        {project.data.location ? ` · ${project.data.location}` : ""}
-      </p>
     </header>
 
     <!-- 照片集:瀑布流保留原始比例(拍摄手记文字已隐藏) -->

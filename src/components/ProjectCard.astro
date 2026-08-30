@@ -1,16 +1,14 @@
 ---
-// 项目卡片:封面 + 标题 + 时间/地点(Tom Hull 式项目组织)
-import { resolveImage, cloudinaryUrl } from "../lib/images";
+// 项目卡片:封面 + 标题(Tom Hull 式项目组织;日期/地点不在页面显示)
+import { cloudinaryUrl } from "../lib/images";
 
 interface Props {
   slug: string;
   title: string;
-  date: string;
-  location?: string;
   coverImage: string;
 }
 
-const { slug, title, date, location, coverImage } = Astro.props;
+const { slug, title, coverImage } = Astro.props;
 const cover = cloudinaryUrl(coverImage, 1200);
 ---
 
@@ -28,8 +26,4 @@ const cover = cloudinaryUrl(coverImage, 1200);
     />
   </div>
   <h2 class="mt-4 text-lg font-medium">{title}</h2>
-  <p class="mt-2 text-xs tracking-wide text-mist/80">
-    {date}
-    {location ? ` · ${location}` : ""}
-  </p>
 </a>

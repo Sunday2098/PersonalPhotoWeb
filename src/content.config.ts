@@ -10,8 +10,9 @@ const projects = defineCollection({
     title: z.string(), // 项目标题
     description: z.string(), // 项目简介(一句话)
     coverImage: z.string(), // 封面图文件名(src/assets/photos/ 下)
-    date: z.string(), // 拍摄时间范围,如 "2026.04"
-    location: z.string().optional(), // 拍摄地点
+    // 日期/地点非必填(可留空,页面不显示;nullable 容忍 YAML 空值 null)
+    date: z.string().optional().nullable(), // 拍摄时间范围,如 "2026.04"
+    location: z.string().optional().nullable(), // 拍摄地点
   }),
 });
 
