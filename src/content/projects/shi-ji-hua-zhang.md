@@ -2,7 +2,7 @@
 id: shi-ji-hua-zhang
 title: 史迹华章
 description: 时光留下的痕迹
-coverImage: dsc-7427.jpg
+coverImage: DSC_9274.jpg
 date:
 location:
 ---

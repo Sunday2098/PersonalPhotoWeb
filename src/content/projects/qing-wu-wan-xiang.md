@@ -2,7 +2,7 @@
 id: qing-wu-wan-xiang
 title: 青芜万象
 description: 草木之间的四季
-coverImage: dsc-7340.jpg
+coverImage: DSC_1086.jpg
 date:
 location:
 ---
