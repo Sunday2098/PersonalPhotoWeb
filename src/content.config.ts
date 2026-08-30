@@ -21,7 +21,7 @@ const photos = defineCollection({
   loader: glob({ pattern: "**/*.md", base: "./src/content/photos" }),
   schema: z.object({
     id: z.string(),
-    title: z.string(), // 照片标题
+    title: z.string().optional().nullable(), // 照片标题(nullable 容忍 YAML 空值 null,防手改清空标题导致构建失败)
     filename: z.string(), // 图片文件名(src/assets/photos/ 下)
     alt: z.string().optional(), // 图片描述(无障碍/SEO)
     date: z.string(), // 拍摄日期 YYYY-MM-DD(首页排序用)

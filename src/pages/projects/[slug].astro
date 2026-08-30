@@ -44,12 +44,12 @@ const lightboxPhotos = photos.map((p) => ({
           <button
             class="lightbox-trigger group mb-6 block w-full break-inside-avoid text-left"
             data-index={i}
-            aria-label={`查看大图:${p.data.title}`}
+            aria-label={`查看大图:${p.data.title ?? ""}`}
           >
             <div class="overflow-hidden bg-neutral-100">
               <img
                 src={resolveImage(p.data.filename)}
-                alt={p.data.alt ?? p.data.title}
+                alt={p.data.alt ?? p.data.title ?? ""}
                 loading="lazy"
                 decoding="async"
                 class="h-auto w-full transition-transform duration-700 ease-out group-hover:scale-[1.03]"

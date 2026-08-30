@@ -80,13 +80,13 @@ const { photos } = Astro.props;
 
   // 灯箱说明只显示标题(EXIF 信息不对外展示;数据仍保留在 content 里)
   function captionText(p) {
-    return p.title;
+    return p.title ?? "";
   }
 
   function show(i) {
     index = (i + photos.length) % photos.length;
     img.src = photos[index].src;
-    img.alt = photos[index].title;
+    img.alt = photos[index].title ?? "";
     caption.textContent = captionText(photos[index]);
   }
 
