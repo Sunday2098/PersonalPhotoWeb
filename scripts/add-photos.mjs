@@ -205,7 +205,7 @@ async function main() {
     const frontmatter = [
       "---",
       `id: ${yamlStr(name)}`,
-      `title: ${yamlStr(date)}`,
+      `title: ""`, // 标题默认留空,命名由用户在 .md 里手动编辑
       `filename: ${yamlStr(f)}`,
       `date: "${date}"`,
       `project: ${yamlStr(project)}`,
@@ -220,7 +220,7 @@ async function main() {
     console.log(`  已上传:${upload.secure_url}`);
   }
 
-  console.log(`\n完成。注意:标题默认用了拍摄日期,想改名就编辑 src/content/photos/*.md 里的 title。`);
+  console.log(`\n完成。注意:标题默认为空,想命名就编辑 src/content/photos/*.md 里的 title。`);
 
   if (!noBuild) {
     console.log("\n正在构建…");
