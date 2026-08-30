@@ -11,12 +11,13 @@
 //
 // 密钥从 .env 读取(CLOUDINARY_CLOUD_NAME / CLOUDINARY_API_KEY / CLOUDINARY_API_SECRET),
 // .env 已 gitignore,绝不提交。
-import { readdir, readFile, writeFile, rename, unlink, mkdir } from "node:fs/promises";
+import { readdir, readFile, writeFile, rename, unlink, mkdir, stat } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createInterface } from "node:readline";
 import exifr from "exifr";
 import { v2 as cloudinary } from "cloudinary";
+import sharp from "sharp";
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const inboxDir = path.join(root, "inbox");
@@ -97,6 +98,29 @@ async function chooseProject(projects) {
   return projects[n - 1].id;
 }
 
+// Cloudinary API 上传上限 10MB;超限的图自动压缩到 1600px(JPEG q82)后以 buffer 上传
+const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
+
+async function prepareUpload(src) {
+  const size = (await stat(src)).size;
+  if (size <= MAX_UPLOAD_BYTES) return { buffer: null, size };
+  const buf = await sharp(src)
+    .rotate() // 应用 EXIF 方向
+    .resize(1600, null, { withoutEnlargement: true })
+    .jpeg({ quality: 82 })
+    .toBuffer();
+  return { buffer: buf, size };
+}
+
+// uploader.upload() 只接受路径/URL,压缩后的 Buffer 走 upload_stream 上传
+function uploadBuffer(buffer, options) {
+  return new Promise((resolve, reject) => {
+    cloudinary.uploader
+      .upload_stream(options, (err, result) => (err ? reject(err) : resolve(result)))
+      .end(buffer);
+  });
+}
+
 // ---------- 主流程 ----------
 
 async function main() {
@@ -160,10 +184,13 @@ async function main() {
     // 上传 Cloudinary(public_id = photos/<文件名>,overwrite=false 防覆盖已有)
     let upload;
     try {
-      upload = await cloudinary.uploader.upload(src, {
-        public_id: `photos/${name}`,
-        overwrite: false,
-      });
+      const { buffer, size } = await prepareUpload(src);
+      if (buffer) {
+        console.log(`  (原图 ${(size / 1024 / 1024).toFixed(1)}MB 超 10MB 上限,自动压缩到 ${(buffer.length / 1024).toFixed(0)}KB)`);
+      }
+      upload = buffer
+        ? await uploadBuffer(buffer, { public_id: `photos/${name}`, overwrite: false })
+        : await cloudinary.uploader.upload(src, { public_id: `photos/${name}`, overwrite: false });
     } catch (e) {
       console.error(`✗ ${f} 上传 Cloudinary 失败:${e.message}`);
       process.exitCode = 1;
