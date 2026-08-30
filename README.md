@@ -38,8 +38,9 @@ node scripts/add-photos.mjs --project shan-yu-hu  # 直接指定项目
 node scripts/add-photos.mjs --no-build           # 跳过自动构建
 ```
 
-脚本自动:读取 EXIF(相机 / 焦距 / ISO / 拍摄时间)→ 生成 `src/content/photos/<文件名>.md` →
-移动图片到 `src/assets/photos/` → 重新构建。
+脚本自动:读取 EXIF(相机 / 焦距 / ISO / 拍摄时间)→ 上传 Cloudinary →
+生成 `src/content/photos/<文件名>.md` → 删除本地原图 → 重新构建。
+超过 Cloudinary 上传上限(10MB)的图片会自动压缩到 1600px(JPEG q82)后上传。
 标题默认用拍摄日期,想改名就编辑生成的 `.md` 里的 `title`。
 
 ## 手动添加新照片 / 新项目
