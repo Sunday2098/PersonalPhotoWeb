@@ -66,6 +66,11 @@ function yamlStr(v) {
   return /[:#]\s|^\s|\s$|^[\d.:-]+$/.test(s) ? `"${s}"` : s;
 }
 
+// Cloudinary 错误信息优先取 .message;部分网络错误只有 .error 或裸对象,逐级兜底
+function errMessage(e) {
+  return e?.message || e?.error?.message || (typeof e === "string" ? e : JSON.stringify(e));
+}
+
 async function readProjects() {
   const files = (await readdir(projectsDir)).filter((f) => f.endsWith(".md"));
   const projects = [];
@@ -106,7 +111,7 @@ async function prepareUpload(src) {
   if (size <= MAX_UPLOAD_BYTES) return { buffer: null, size };
   const buf = await sharp(src)
     .rotate() // 应用 EXIF 方向
-    .resize(1600, null, { withoutEnlargement: true })
+    .resize(1920, null, { withoutEnlargement: true })
     .jpeg({ quality: 82 })
     .toBuffer();
   return { buffer: buf, size };
@@ -182,19 +187,38 @@ async function main() {
     }
 
     // 上传 Cloudinary(public_id = photos/<文件名>,overwrite=false 防覆盖已有)
+    // 网络偶发超时会导致"服务端已落盘、客户端报错",先自动重试一次
     let upload;
     try {
       const { buffer, size } = await prepareUpload(src);
       if (buffer) {
         console.log(`  (原图 ${(size / 1024 / 1024).toFixed(1)}MB 超 10MB 上限,自动压缩到 ${(buffer.length / 1024).toFixed(0)}KB)`);
       }
-      upload = buffer
-        ? await uploadBuffer(buffer, { public_id: `photos/${name}`, overwrite: false })
-        : await cloudinary.uploader.upload(src, { public_id: `photos/${name}`, overwrite: false });
+      const doUpload = () =>
+        buffer
+          ? uploadBuffer(buffer, { public_id: `photos/${name}`, overwrite: false })
+          : cloudinary.uploader.upload(src, { public_id: `photos/${name}`, overwrite: false });
+      try {
+        upload = await doUpload();
+      } catch (err) {
+        if (errMessage(err).includes("already exists")) throw err; // 交给外层统一处理
+        console.warn(`  ⚠ ${f} 首次上传失败,2 秒后重试(${errMessage(err)})`);
+        await new Promise((r) => setTimeout(r, 2000));
+        upload = await doUpload();
+      }
     } catch (e) {
-      console.error(`✗ ${f} 上传 Cloudinary 失败:${e.message}`);
-      process.exitCode = 1;
-      continue;
+      const info = errMessage(e);
+      // overwrite:false 下云端已有同名资源 → 上次上传其实已成功,直接补数据文件
+      if (info.includes("already exists")) {
+        console.log(`  ℹ ${f} 云端已存在同名资源(上次上传可能超时但已落盘),跳过上传直接生成数据`);
+        upload = {
+          secure_url: `https://res.cloudinary.com/${CLOUDINARY_CLOUD_NAME}/image/upload/photos/${name}`,
+        };
+      } else {
+        console.error(`✗ ${f} 上传 Cloudinary 失败:${info}`);
+        process.exitCode = 1;
+        continue;
+      }
     }
 
     // 只写读到的 EXIF 字段(schema 里 iso 必须是数字,空值会构建失败)
