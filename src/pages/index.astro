@@ -5,8 +5,11 @@
 //   把时间按 3 天切成一个个"桶",同一桶内所有访客看到相同结果;
 //   用 (桶号|项目id) 做简单哈希,对项目照片数取模 → 本轮展示第几张。
 //   构建时按构建时刻的桶算一张先写进 HTML 首屏(无 JS 也可见图),
-//   页面加载后内联脚本再用访问者当前时间重算一次,桶变了就换图。
+//   页面加载后内联脚本再用访问者当前时间重算一次,桶变了就换图,
+//   并同步卡片的 data-big / data-caption,保证点击放大的是墙面上当前那张。
 //   改 frontmatter 里的 pickIndex 时,必须同步改页面底部内联脚本里的同款算法。
+//
+// 点击行为:只放大当前这张(单图模式,不走多图浏览)—— Lightbox 见组件内 data-big 说明。
 import { getCollection } from "astro:content";
 import BaseLayout from "../layouts/BaseLayout.astro";
 import Lightbox from "../components/Lightbox.astro";
@@ -35,20 +38,11 @@ const cards = (await getCollection("projects"))
   .map(({ project, photos }) => {
     const pid = project.id;
     const title = project.data.title;
-    const thumbs = photos.map((p) => cloudinaryUrl(p.data.filename, 800));
-    return {
-      pid,
-      title,
-      count: photos.length,
-      pick: pickIndex(pid, photos.length), // 首屏选图(构建时刻的桶)
-      thumbs,
-      lbId: `lb-${pid}`,
-      // 灯箱内容:默认显示项目名,照片有标题则 "项目 · 标题"
-      lbPhotos: photos.map((p) => ({
-        src: cloudinaryUrl(p.data.filename, 1600),
-        title: p.data.title ? `${title} · ${p.data.title}` : title,
-      })),
-    };
+    const thumbs = photos.map((p) => cloudinaryUrl(p.data.filename, 800)); // 墙面缩略图
+    const bigs = photos.map((p) => cloudinaryUrl(p.data.filename, 1600)); // 点击放大
+    const titles = photos.map((p) => p.data.title ?? ""); // 与上面两张同序
+    const pick = pickIndex(pid, photos.length); // 首屏选图(构建时刻的桶)
+    return { pid, title, count: photos.length, pick, thumbs, bigs, titles };
   });
 ---
 
@@ -59,7 +53,7 @@ const cards = (await getCollection("projects"))
         用照片记录走过的路、看过的风景和日常的瞬间。
       </p>
       <p class="mt-3 text-xs tracking-wide text-mist/70">
-        每个项目精选 1 张 · 每 3 天自动换一张 · 点击卡片浏览该项目全部照片
+        每个项目精选 1 张 · 每 3 天自动换一张 · 点击照片可放大浏览
       </p>
     </div>
 
@@ -68,10 +62,11 @@ const cards = (await getCollection("projects"))
         cards.map((c) => (
           <button
             class="lightbox-trigger group block text-left"
-            data-lightbox={c.lbId}
-            data-index={c.pick}
+            data-project={c.pid}
             data-pick={c.pick}
-            aria-label={`浏览「${c.title}」的全部 ${c.count} 张照片`}
+            data-big={c.bigs[c.pick]}
+            data-caption={c.titles[c.pick]}
+            aria-label={`放大查看「${c.title}」代表照`}
           >
             <div class="overflow-hidden bg-neutral-100">
               <img
@@ -94,17 +89,17 @@ const cards = (await getCollection("projects"))
     </div>
   </section>
 
-  {
-    cards.map((c) => (
-      <Lightbox id={c.lbId} photos={c.lbPhotos} />
-    ))
-  }
+  <Lightbox photos={[]} />
 </BaseLayout>
 
-<script define:vars={{ rotation: cards.map((c) => ({ id: c.pid, thumbs: c.thumbs })) }}>
+<script
+  define:vars={{
+    rotation: cards.map((c) => ({ id: c.pid, thumbs: c.thumbs, bigs: c.bigs, titles: c.titles })),
+  }}
+>
   // 3 天轮换:用访问者当前时间重算选图,与 frontmatter pickIndex 算法完全一致(纯 JS)。
-  // 桶没变 → 与首屏 data-pick 相同,什么都不做;桶变了 → 换成新选图,并同步 data-index,
-  // 这样点击卡片时灯箱会从"当前正展示的那张"打开。
+  // 桶没变 → 与首屏 data-pick 相同,什么都不做;桶变了 → 换掉墙面的缩略图,
+  // 并同步 data-big / data-caption,保证点击放大的是墙面上当前展示的这一张。
   ;(function () {
     const items = rotation;
     const bucket = Math.floor(Date.now() / (3 * 86400000));
@@ -113,13 +108,14 @@ const cards = (await getCollection("projects"))
       const key = bucket + "|" + item.id;
       for (let i = 0; i < key.length; i++) h = ((h << 5) + h + key.charCodeAt(i)) >>> 0;
       const pick = h % item.thumbs.length;
-      const btn = document.querySelector(
-        '.lightbox-trigger[data-lightbox="lb-' + item.id + '"]',
+      const card = document.querySelector(
+        '.lightbox-trigger[data-project="' + item.id + '"]',
       );
-      if (!btn || Number(btn.dataset.pick) === pick) continue; // 没轮到换,保持首屏
-      const img = btn.querySelector("img");
+      if (!card || Number(card.dataset.pick) === pick) continue; // 没轮到换,保持首屏
+      const img = card.querySelector("img");
       if (img) img.src = item.thumbs[pick];
-      btn.dataset.index = String(pick);
+      card.dataset.big = item.bigs[pick];
+      card.dataset.caption = item.titles[pick];
     }
   })();
 </script>

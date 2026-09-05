@@ -2,8 +2,10 @@
 // 全屏灯箱(PRD V1.1 §4.4)
 // 用法:页面渲染 <Lightbox photos={[{ src, title, exif }]} id="lb-xxx" />,
 // 给缩略图加 class="lightbox-trigger" + data-lightbox={灯箱 id}(不带 = 默认实例)+ data-index={i},
-// 点击即在 i 处打开灯箱。
-// 同页可渲染多个实例(id 各不相同,如首页每个项目一个);默认实例兼容不带 data-lightbox 的旧触发器。
+// 点击即在 i 处打开灯箱(多图浏览,←/→ 切换)。
+// 若触发器自带 data-big(大图 URL)+ data-caption(标题),则进入"单图模式":
+// 只放大这一张、无左右切换 —— 适用于只放大查看、不做多图浏览的页面。
+// 同页可渲染多个实例(id 各不相同);默认实例兼容不带 data-lightbox 的旧触发器。
 // src 为 Cloudinary 大图 URL(1600w,由页面传入)
 
 interface ExifInfo {
@@ -45,13 +47,13 @@ const lbId = id;
     class="lb-caption absolute inset-x-0 bottom-8 text-center text-xs tracking-wide text-ink/70"
   ></p>
   <button
-    class="lb-prev absolute left-4 top-1/2 -translate-y-1/2 p-3 text-2xl text-ink/60 transition-colors hover:text-ink"
+    class="lb-prev hidden absolute left-4 top-1/2 -translate-y-1/2 p-3 text-2xl text-ink/60 transition-colors hover:text-ink"
     aria-label="上一张"
   >
     &larr;
   </button>
   <button
-    class="lb-next absolute right-4 top-1/2 -translate-y-1/2 p-3 text-2xl text-ink/60 transition-colors hover:text-ink"
+    class="lb-next hidden absolute right-4 top-1/2 -translate-y-1/2 p-3 text-2xl text-ink/60 transition-colors hover:text-ink"
     aria-label="下一张"
   >
     &rarr;
@@ -81,6 +83,7 @@ const lbId = id;
     const closeBtn = box.querySelector(".lb-close");
 
     let index = 0;
+    let single = false; // 单图模式(首页等:只放大当前这一张,无左右切换)
     let touchX = 0;
 
     // 灯箱说明只显示标题(EXIF 信息不对外展示;数据仍保留在 content 里)
@@ -95,8 +98,26 @@ const lbId = id;
       caption.textContent = captionText(myPhotos[index]);
     }
 
+    // 触发器自带 data-big(当前大图 URL):只放大这一张,不进入多图浏览
+    function openSingle(el) {
+      single = true;
+      prevBtn?.classList.add("hidden");
+      nextBtn?.classList.add("hidden");
+      img.src = el.dataset.big;
+      img.alt = el.dataset.caption ?? "";
+      caption.textContent = el.dataset.caption ?? "";
+      openBox();
+    }
+
     function open(i) {
+      single = false;
+      prevBtn?.classList.remove("hidden");
+      nextBtn?.classList.remove("hidden");
       show(i);
+      openBox();
+    }
+
+    function openBox() {
       box.classList.add("open");
       box.setAttribute("aria-hidden", "false");
       document.body.style.overflow = "hidden";
@@ -109,6 +130,7 @@ const lbId = id;
     }
 
     function step(delta) {
+      if (single) return; // 单图模式无上一张/下一张
       show(index + delta);
     }
 
@@ -119,6 +141,10 @@ const lbId = id;
         : '.lightbox-trigger[data-lightbox="' + myId + '"]';
     document.querySelectorAll(sel).forEach((el) => {
       el.addEventListener("click", () => {
+        if (el.dataset.big) {
+          openSingle(el); // 单图放大(值取点击瞬间,轮换换图后仍与墙面显示一致)
+          return;
+        }
         const i = Number(el.dataset.index ?? 0);
         if (myPhotos[i]) open(i);
       });
