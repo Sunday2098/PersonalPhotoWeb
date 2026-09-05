@@ -1,21 +1,55 @@
 ---
-// 首页:近期精选照片流(PRD V1.1 §4.1),时间倒序,点击开灯箱
+// 首页:项目照片墙 —— 每个项目精选 1 张代表图(统一比例),每 3 天自动轮换到该项目另一张。
+//
+// 轮换机制(纯前端、确定性,换图无需重新部署):
+//   把时间按 3 天切成一个个"桶",同一桶内所有访客看到相同结果;
+//   用 (桶号|项目id) 做简单哈希,对项目照片数取模 → 本轮展示第几张。
+//   构建时按构建时刻的桶算一张先写进 HTML 首屏(无 JS 也可见图),
+//   页面加载后内联脚本再用访问者当前时间重算一次,桶变了就换图。
+//   改 frontmatter 里的 pickIndex 时,必须同步改页面底部内联脚本里的同款算法。
 import { getCollection } from "astro:content";
 import BaseLayout from "../layouts/BaseLayout.astro";
 import Lightbox from "../components/Lightbox.astro";
-import { resolveImage, cloudinaryUrl } from "../lib/images";
+import { cloudinaryUrl } from "../lib/images";
 
-const photos = (await getCollection("photos")).sort((a, b) =>
-  b.data.date.localeCompare(a.data.date),
+const BUCKET_MS = 3 * 86400000; // 3 天一个轮换周期
+
+// 确定性选图:同一(桶, 项目)永远选同一张;哈希用 djb2(与内联脚本一致)
+function pickIndex(slug: string, count: number): number {
+  const bucket = Math.floor(Date.now() / BUCKET_MS);
+  let h = 5381;
+  const key = `${bucket}|${slug}`;
+  for (let i = 0; i < key.length; i++) h = ((h << 5) + h + key.charCodeAt(i)) >>> 0;
+  return h % count;
+}
+
+const allPhotos = (await getCollection("photos")).sort((a, b) =>
+  (b.data.date ?? "").localeCompare(a.data.date ?? ""),
 );
-const recent = photos.slice(0, 8);
 
-// 灯箱大图:Cloudinary 1600w URL(构建零图片依赖)
-const lightboxPhotos = recent.map((p) => ({
-  src: cloudinaryUrl(p.data.filename, 1600),
-  title: p.data.title,
-  exif: p.data.exif,
-}));
+// 每个项目的照片(时间倒序,与项目页一致),只保留有照片的项目,新的项目排前面
+const cards = (await getCollection("projects"))
+  .map((p) => ({ project: p, photos: allPhotos.filter((ph) => ph.data.project === p.id) }))
+  .filter((x) => x.photos.length > 0)
+  .sort((a, b) => (b.photos[0].data.date ?? "").localeCompare(a.photos[0].data.date ?? ""))
+  .map(({ project, photos }) => {
+    const pid = project.id;
+    const title = project.data.title;
+    const thumbs = photos.map((p) => cloudinaryUrl(p.data.filename, 800));
+    return {
+      pid,
+      title,
+      count: photos.length,
+      pick: pickIndex(pid, photos.length), // 首屏选图(构建时刻的桶)
+      thumbs,
+      lbId: `lb-${pid}`,
+      // 灯箱内容:默认显示项目名,照片有标题则 "项目 · 标题"
+      lbPhotos: photos.map((p) => ({
+        src: cloudinaryUrl(p.data.filename, 1600),
+        title: p.data.title ? `${title} · ${p.data.title}` : title,
+      })),
+    };
+  });
 ---
 
 <BaseLayout>
@@ -25,31 +59,34 @@ const lightboxPhotos = recent.map((p) => ({
         用照片记录走过的路、看过的风景和日常的瞬间。
       </p>
       <p class="mt-3 text-xs tracking-wide text-mist/70">
-        最近更新 · 点击照片可放大浏览
+        每个项目精选 1 张 · 每 3 天自动换一张 · 点击卡片浏览该项目全部照片
       </p>
     </div>
 
     <div class="grid grid-cols-1 gap-x-8 gap-y-10 pb-24 sm:grid-cols-2 lg:grid-cols-3">
       {
-        recent.map((p, i) => (
+        cards.map((c) => (
           <button
             class="lightbox-trigger group block text-left"
-            data-index={i}
-            aria-label={`查看大图:${p.data.title ?? ""}`}
+            data-lightbox={c.lbId}
+            data-index={c.pick}
+            data-pick={c.pick}
+            aria-label={`浏览「${c.title}」的全部 ${c.count} 张照片`}
           >
             <div class="overflow-hidden bg-neutral-100">
               <img
-                src={resolveImage(p.data.filename)}
-                alt={p.data.alt ?? p.data.title ?? ""}
+                src={c.thumbs[c.pick]}
+                alt={c.title}
                 loading="lazy"
                 decoding="async"
                 class="aspect-[3/2] w-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.03]"
               />
             </div>
             <span
-              class="mt-3 block text-sm text-ink opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+              class="mt-3 flex items-baseline gap-2 text-sm opacity-0 transition-opacity duration-300 group-hover:opacity-100"
             >
-              {p.data.title}
+              <span class="text-ink">{c.title}</span>
+              <span class="text-xs text-mist">{c.count} 张</span>
             </span>
           </button>
         ))
@@ -57,5 +94,32 @@ const lightboxPhotos = recent.map((p) => ({
     </div>
   </section>
 
-  <Lightbox photos={lightboxPhotos} />
+  {
+    cards.map((c) => (
+      <Lightbox id={c.lbId} photos={c.lbPhotos} />
+    ))
+  }
 </BaseLayout>
+
+<script define:vars={{ rotation: cards.map((c) => ({ id: c.pid, thumbs: c.thumbs })) }}>
+  // 3 天轮换:用访问者当前时间重算选图,与 frontmatter pickIndex 算法完全一致(纯 JS)。
+  // 桶没变 → 与首屏 data-pick 相同,什么都不做;桶变了 → 换成新选图,并同步 data-index,
+  // 这样点击卡片时灯箱会从"当前正展示的那张"打开。
+  ;(function () {
+    const items = rotation;
+    const bucket = Math.floor(Date.now() / (3 * 86400000));
+    for (const item of items) {
+      let h = 5381;
+      const key = bucket + "|" + item.id;
+      for (let i = 0; i < key.length; i++) h = ((h << 5) + h + key.charCodeAt(i)) >>> 0;
+      const pick = h % item.thumbs.length;
+      const btn = document.querySelector(
+        '.lightbox-trigger[data-lightbox="lb-' + item.id + '"]',
+      );
+      if (!btn || Number(btn.dataset.pick) === pick) continue; // 没轮到换,保持首屏
+      const img = btn.querySelector("img");
+      if (img) img.src = item.thumbs[pick];
+      btn.dataset.index = String(pick);
+    }
+  })();
+</script>
