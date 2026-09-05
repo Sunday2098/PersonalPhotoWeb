@@ -216,6 +216,10 @@ async function main() {
         };
       } else {
         console.error(`✗ ${f} 上传 Cloudinary 失败:${info}`);
+        if (info.includes("Stale request")) {
+          console.error(`  💡 提示:Stale request = 本机系统时钟不准(Cloudinary 要求签名时间戳与真实时间差 <1 小时)。`);
+          console.error(`  请同步系统时间:Windows 设置 → 时间和语言 → 立即同步,或命令行 w32tm /resync,然后再跑一次。`);
+        }
         process.exitCode = 1;
         continue;
       }
