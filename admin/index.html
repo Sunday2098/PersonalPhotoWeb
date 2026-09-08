@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>夏至未至 · 后台管理(仅本机)</title>
+<style>
+  :root {
+    --bg: #ffffff; --ink: #1a1a1a; --mist: #8a8a8a; --terra: #c4a882;
+    --line: #e8e8e6; --sel: rgba(196, 168, 130, 0.18);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font: 15px/1.7 "Microsoft YaHei", "PingFang SC", system-ui, sans-serif; color: var(--ink); background: var(--bg); }
+  header { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; justify-content: space-between; padding: 14px 24px; border-bottom: 1px solid var(--line); background: var(--bg); }
+  header h1 { font-size: 16px; font-weight: 600; letter-spacing: 1px; }
+  header .hint { font-size: 12px; color: var(--mist); }
+  .btn { padding: 8px 16px; border: 1px solid var(--ink); background: transparent; color: var(--ink); font-size: 13px; cursor: pointer; border-radius: 4px; transition: all .2s; }
+  .btn:hover { background: var(--ink); color: #fff; }
+  .btn.ghost { border-color: var(--line); color: var(--mist); }
+  .btn.ghost:hover { background: var(--line); color: var(--ink); }
+  .btn.primary { background: var(--terra); border-color: var(--terra); color: #fff; }
+  .btn.primary:hover { background: #b39572; }
+  .layout { display: grid; grid-template-columns: 300px 1fr; min-height: calc(100vh - 57px); }
+  /* 左侧项目列表 */
+  aside { border-right: 1px solid var(--line); padding: 18px 16px; overflow-y: auto; max-height: calc(100vh - 57px); }
+  aside h2 { font-size: 13px; color: var(--mist); font-weight: 500; margin-bottom: 10px; letter-spacing: 1px; }
+  .proj { display: flex; align-items: center; gap: 8px; padding: 10px 12px; margin-bottom: 6px; border: 1px solid transparent; border-radius: 6px; cursor: pointer; transition: all .15s; }
+  .proj:hover { background: #f5f5f3; }
+  .proj.active { background: var(--sel); border-color: var(--terra); }
+  .proj.dragover { background: var(--sel); border-color: var(--terra); box-shadow: 0 0 0 2px var(--sel); }
+  .proj .name { flex: 1; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .proj .count { font-size: 12px; color: var(--mist); background: #f0f0ee; border-radius: 10px; padding: 0 8px; }
+  /* 右侧照片网格 */
+  main { padding: 18px 20px; overflow-y: auto; max-height: calc(100vh - 57px); }
+  .toolbar { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+  .toolbar h2 { font-size: 16px; font-weight: 600; }
+  .toolbar .info { font-size: 12px; color: var(--mist); }
+  .selbar { display: none; align-items: center; gap: 12px; margin-bottom: 16px; padding: 10px 14px; background: var(--sel); border: 1px solid var(--terra); border-radius: 6px; font-size: 13px; }
+  .selbar.show { display: flex; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
+  .ph { position: relative; border: 2px solid transparent; border-radius: 6px; overflow: hidden; cursor: pointer; background: #f0f0ee; }
+  .ph img { display: block; width: 100%; aspect-ratio: 3/2; object-fit: cover; pointer-events: none; }
+  .ph .tag { position: absolute; left: 0; right: 0; bottom: 0; padding: 3px 6px; font-size: 11px; color: #fff; background: linear-gradient(transparent, rgba(0,0,0,.7)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ph.sel { border-color: var(--terra); box-shadow: 0 0 0 2px var(--sel); }
+  .ph.dragging { opacity: .4; }
+  .empty { padding: 60px 0; text-align: center; color: var(--mist); font-size: 13px; }
+  /* 新建项目弹窗 */
+  .mask { display: none; position: fixed; inset: 0; z-index: 50; background: rgba(0,0,0,.45); align-items: center; justify-content: center; }
+  .mask.show { display: flex; }
+  .modal { width: 440px; max-width: 92vw; background: #fff; border-radius: 8px; padding: 24px; }
+  .modal h3 { font-size: 16px; margin-bottom: 16px; }
+  .field { margin-bottom: 12px; }
+  .field label { display: block; font-size: 12px; color: var(--mist); margin-bottom: 4px; }
+  .field input { width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 4px; font-size: 14px; outline: none; }
+  .field input:focus { border-color: var(--terra); }
+  .modal .actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+  /* 提示 */
+  #toast { position: fixed; left: 50%; bottom: 40px; transform: translateX(-50%) translateY(20px); background: var(--ink); color: #fff; padding: 10px 20px; border-radius: 6px; font-size: 13px; opacity: 0; pointer-events: none; transition: all .3s; z-index: 60; }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>夏至未至 · 后台管理</h1>
+    <span class="hint">仅本机可用 · 改动直接写入本地内容文件,完成后 git push 上线</span>
+  </div>
+  <div style="display:flex;gap:10px">
+    <button class="btn ghost" id="refresh">刷新</button>
+    <button class="btn primary" id="newProject">＋ 新建项目</button>
+  </div>
+</header>
+
+<div class="layout">
+  <aside>
+    <h2>项目(<span id="projTotal">0</span>)· 拖照片到卡片上移动</h2>
+    <div id="projList"></div>
+  </aside>
+
+  <main>
+    <div class="toolbar">
+      <h2 id="curTitle">请选择项目</h2>
+      <span class="info" id="curInfo"></span>
+    </div>
+    <div class="selbar" id="selbar">
+      <span id="selCount">已选 0 张</span>
+      <span style="color:var(--mist);font-size:12px">拖拽任意一张到左侧项目卡片,或直接点击左侧目标项目</span>
+      <button class="btn ghost" id="selAll" style="margin-left:auto">全选</button>
+      <button class="btn ghost" id="selClear">取消选择</button>
+    </div>
+    <div class="grid" id="photoGrid"></div>
+    <div class="empty" id="emptyTip">选中左侧项目查看照片;也可以先把照片拖进空项目</div>
+  </main>
+</div>
+
+<!-- 新建项目弹窗 -->
+<div class="mask" id="mask">
+  <div class="modal">
+    <h3>新建项目</h3>
+    <div class="field"><label>项目标题 *</label><input id="f-title" placeholder="如:城市漫游 2025" /></div>
+    <div class="field"><label>项目 id(网址用,留空自动生成;仅字母数字连字符)</label><input id="f-id" placeholder="如:cheng-shi-man-you" /></div>
+    <div class="field"><label>一句话简介</label><input id="f-desc" placeholder="镜头下的城市" /></div>
+    <div class="field"><label>拍摄时间(如 2025.03 - 2025.06,可留空)</label><input id="f-date" placeholder="2025.03 - 2025.06" /></div>
+    <div class="field"><label>拍摄地点(可留空)</label><input id="f-loc" placeholder="杭州" /></div>
+    <div class="field"><label>封面图文件名(可留空,之后在项目 .md 里补)</label><input id="f-cover" placeholder="DSC_1234.jpg" /></div>
+    <div class="actions">
+      <button class="btn ghost" id="cancelModal">取消</button>
+      <button class="btn primary" id="submitProject">创建</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// 后台管理前端(纯原生 JS,配合 scripts/admin-server.mjs)
+(function () {
+  var state = { projects: [], photos: [], current: null, selected: new Set(), cloudName: "" };
+  var $ = function (id) { return document.getElementById(id); };
+
+  function toast(msg) {
+    var t = $("toast");
+    t.textContent = msg;
+    t.classList.add("show");
+    setTimeout(function () { t.classList.remove("show"); }, 2400);
+  }
+
+  function thumb(filename) {
+    var id = String(filename).replace(/\.[^.]+$/, "");
+    return "https://res.cloudinary.com/" + state.cloudName +
+      "/image/upload/f_auto,q_auto,w_400/photos/" + id;
+  }
+
+  function load() {
+    Promise.all([
+      fetch("/api/config").then(function (r) { return r.json(); }),
+      fetch("/api/projects").then(function (r) { return r.json(); }),
+      fetch("/api/photos").then(function (r) { return r.json(); }),
+    ]).then(function (rs) {
+      state.cloudName = rs[0].cloudName;
+      state.projects = rs[1];
+      state.photos = rs[2];
+      if (state.current && !state.projects.some(function (p) { return p.id === state.current; })) {
+        state.current = null;
+      }
+      state.selected.clear();
+      render();
+    }).catch(function (e) { toast("加载失败:" + e.message); });
+  }
+
+  function photosOf(pid) {
+    return state.photos.filter(function (p) { return p.project === pid; });
+  }
+
+  function render() {
+    // 项目列表
+    $("projTotal").textContent = state.projects.length;
+    var list = $("projList");
+    list.innerHTML = "";
+    state.projects.forEach(function (p) {
+      var div = document.createElement("div");
+      div.className = "proj" + (p.id === state.current ? " active" : "");
+      div.innerHTML =
+        '<span class="name">' + esc(p.title || p.id) + "</span>" +
+        '<span class="count">' + p.count + " 张</span>";
+      div.title = (p.description ? p.description + "\n" : "") +
+        (p.date ? p.date + " " : "") + (p.location || "");
+      div.addEventListener("click", function () {
+        if (state.selected.size > 0 && p.id !== state.current) {
+          move(Array.from(state.selected), p.id); // 点选照片后点目标项目 = 移动
+        } else {
+          state.current = p.id;
+          state.selected.clear();
+          render();
+        }
+      });
+      div.addEventListener("dragover", function (e) {
+        e.preventDefault();
+        div.classList.add("dragover");
+      });
+      div.addEventListener("dragleave", function () { div.classList.remove("dragover"); });
+      div.addEventListener("drop", function (e) {
+        e.preventDefault();
+        div.classList.remove("dragover");
+        var ids = JSON.parse(e.dataTransfer.getData("text/plain") || "[]");
+        if (ids.length) move(ids, p.id);
+      });
+      list.appendChild(div);
+    });
+
+    // 照片网格
+    var cur = state.projects.find(function (p) { return p.id === state.current; });
+    $("curTitle").textContent = cur ? (cur.title || cur.id) : "请选择项目";
+    $("curInfo").textContent = cur ? (cur.date || "") + (cur.location ? " · " + cur.location : "") : "左侧点击选择";
+    var grid = $("photoGrid");
+    grid.innerHTML = "";
+    $("emptyTip").style.display = cur ? "none" : "";
+    if (!cur) { renderSelbar(); return; }
+    var list2 = photosOf(cur.id);
+    if (!list2.length) {
+      $("emptyTip").style.display = "";
+      $("emptyTip").textContent = "该项目还没有照片 —— 去左侧其他项目选中照片拖过来,或先跑 add-photos 加照片";
+    }
+    list2.forEach(function (p) {
+      var div = document.createElement("div");
+      div.className = "ph" + (state.selected.has(p.id) ? " sel" : "");
+      div.draggable = true;
+      div.innerHTML =
+        '<img loading="lazy" src="' + thumb(p.filename) + '" alt="" />' +
+        '<span class="tag">' + esc(p.title || p.id) + "</span>";
+      div.addEventListener("click", function () {
+        if (state.selected.has(p.id)) state.selected.delete(p.id);
+        else state.selected.add(p.id);
+        div.classList.toggle("sel");
+        renderSelbar();
+      });
+      div.addEventListener("dragstart", function (e) {
+        if (!state.selected.has(p.id)) { // 拖动未选中的图 = 只拖这一张
+          state.selected.clear();
+          state.selected.add(p.id);
+          render();
+        }
+        e.dataTransfer.setData("text/plain", JSON.stringify(Array.from(state.selected)));
+        div.classList.add("dragging");
+      });
+      div.addEventListener("dragend", function () { div.classList.remove("dragging"); });
+      grid.appendChild(div);
+    });
+    renderSelbar();
+  }
+
+  function renderSelbar() {
+    $("selbar").classList.toggle("show", state.selected.size > 0);
+    $("selCount").textContent = "已选 " + state.selected.size + " 张";
+  }
+
+  function move(ids, target) {
+    if (!ids.length) return;
+    fetch("/api/move", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ photoIds: ids, targetProject: target }),
+    }).then(function (r) { return r.json(); }).then(function (res) {
+      if (res.error) { toast("移动失败:" + res.error); return; }
+      var bad = (res.results || []).filter(function (x) { return !x.ok; });
+      toast("已移动 " + (ids.length - bad.length) + "/" + ids.length + " 张 → " + target +
+        (bad.length ? "(失败:" + bad.map(function (x) { return x.id; }).join(",") + ")" : ""));
+      load();
+    }).catch(function (e) { toast("移动失败:" + e.message); });
+  }
+
+  function esc(s) {
+    return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  }
+
+  // 新建项目
+  var mask = $("mask");
+  $("newProject").addEventListener("click", function () { mask.classList.add("show"); $("f-title").focus(); });
+  $("cancelModal").addEventListener("click", function () { mask.classList.remove("show"); });
+  mask.addEventListener("click", function (e) { if (e.target === mask) mask.classList.remove("show"); });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape") mask.classList.remove("show"); });
+  $("submitProject").addEventListener("click", function () {
+    var title = $("f-title").value.trim();
+    if (!title) { toast("请填写项目标题"); return; }
+    fetch("/api/project", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: title,
+        id: $("f-id").value.trim(),
+        description: $("f-desc").value.trim(),
+        date: $("f-date").value.trim(),
+        location: $("f-loc").value.trim(),
+        coverImage: $("f-cover").value.trim(),
+      }),
+    }).then(function (r) { return r.json(); }).then(function (res) {
+      if (res.error) { toast("创建失败:" + res.error); return; }
+      mask.classList.remove("show");
+      ["f-title", "f-id", "f-desc", "f-date", "f-loc", "f-cover"].forEach(function (id) { $(id).value = ""; });
+      toast("项目已创建:" + res.id + " —— 记得 git push 上线");
+      state.current = res.id;
+      load();
+    }).catch(function (e) { toast("创建失败:" + e.message); });
+  });
+
+  $("refresh").addEventListener("click", load);
+  $("selAll").addEventListener("click", function () {
+    state.selected = new Set(photosOf(state.current).map(function (p) { return p.id; }));
+    render();
+  });
+  $("selClear").addEventListener("click", function () { state.selected.clear(); render(); });
+
+  load();
+})();
+</script>
+</body>
+</html>
