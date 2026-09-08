@@ -13,8 +13,9 @@ const {
 
 const pathname = Astro.url.pathname.replace(/\/$/, "") || "/";
 
-// 极简导航(PRD V1.2 首页:网站名称 + 项目/关于;首页从站点名进入)
+// 极简导航(PRD V1.2:网站名称 + 首页/项目/关于)
 const nav = [
+  { href: "/", label: "首页", match: (p: string) => p === "/" },
   { href: "/projects/", label: "项目", match: (p: string) => p.startsWith("/projects") },
   { href: "/about/", label: "关于", match: (p: string) => p.startsWith("/about") },
 ];
