@@ -40,8 +40,8 @@ const lbId = id;
   aria-label="照片浏览"
   aria-hidden="true"
 >
-  <!-- 顶部栏:左计数器,右 全屏/放大/关闭 -->
-  <div class="absolute inset-x-0 top-0 flex items-center justify-between px-5 py-4 sm:px-6">
+  <!-- 顶部栏:左计数器,右 全屏/放大/关闭(z-10 防止被全屏图片区挡住点击) -->
+  <div class="absolute inset-x-0 top-0 z-10 flex items-center justify-between px-5 py-4 sm:px-6">
     <span class="lb-counter text-xs tracking-widest text-white/70"></span>
     <div class="flex items-center gap-4">
       <button
@@ -85,27 +85,27 @@ const lbId = id;
     />
   </div>
 
-  <!-- 大图加载占位(PRD §4.4 验收:大图加载时显示占位图) -->
-  <div class="lb-loading absolute inset-0 flex items-center justify-center">
+  <!-- 大图加载占位(PRD §4.4 验收:大图加载时显示占位图;纯视觉层,不拦截点击) -->
+  <div class="lb-loading pointer-events-none absolute inset-0 flex items-center justify-center">
     <div class="lb-spinner"></div>
   </div>
 
   <!-- 桌面端箭头:固定在视口两侧,图片之外 -->
   <button
-    class="lb-prev absolute left-0 top-1/2 hidden -translate-y-1/2 p-4 text-3xl text-white/70 transition-colors hover:text-white sm:block"
+    class="lb-prev absolute left-0 top-1/2 z-10 hidden -translate-y-1/2 p-4 text-3xl text-white/70 transition-colors hover:text-white sm:block"
     aria-label="上一张"
   >
     &larr;
   </button>
   <button
-    class="lb-next absolute right-0 top-1/2 hidden -translate-y-1/2 p-4 text-3xl text-white/70 transition-colors hover:text-white sm:block"
+    class="lb-next absolute right-0 top-1/2 z-10 hidden -translate-y-1/2 p-4 text-3xl text-white/70 transition-colors hover:text-white sm:block"
     aria-label="下一张"
   >
     &rarr;
   </button>
 
   <!-- 移动端底部控制条:上一张 / 计数 / 下一张(手机适配) -->
-  <div class="lb-mobile-bar absolute inset-x-0 bottom-0 flex items-center justify-between px-6 pb-6 sm:hidden">
+  <div class="lb-mobile-bar absolute inset-x-0 bottom-0 z-10 flex items-center justify-between px-6 pb-6 sm:hidden">
     <button class="lb-prev-m p-3 text-2xl text-white/80" aria-label="上一张">&larr;</button>
     <span class="lb-counter-m text-xs tracking-widest text-white/70"></span>
     <button class="lb-next-m p-3 text-2xl text-white/80" aria-label="下一张">&rarr;</button>
@@ -165,11 +165,9 @@ const lbId = id;
     // 加载占位:换图时显示 spinner,大图 load 后隐藏
     img.addEventListener("load", () => {
       loading.style.opacity = "0";
-      loading.style.pointerEvents = "none";
     });
     function setLoading() {
       loading.style.opacity = "1";
-      loading.style.pointerEvents = "";
       img.classList.remove("lb-zoomed"); // 换图时还原放大
     }
 
@@ -213,7 +211,10 @@ const lbId = id;
       box.classList.remove("open");
       box.setAttribute("aria-hidden", "true");
       document.body.style.overflow = "";
-      if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+      if (document.fullscreenElement) {
+        const p = document.exitFullscreen();
+        if (p && p.catch) p.catch(() => {});
+      }
       img.classList.remove("lb-zoomed");
     }
 
@@ -248,14 +249,16 @@ const lbId = id;
       img.classList.toggle("lb-zoomed");
     });
 
-    // 全屏(浏览器 Fullscreen API;iOS Safari 不支持时静默无操作)
+    // 全屏(浏览器 Fullscreen API;iOS Safari 等不支持时静默无操作)
     fullscreenBtn?.addEventListener("click", (e) => {
       e.stopPropagation();
       if (document.fullscreenElement) {
-        document.exitFullscreen().catch(() => {});
-      } else {
-        box.requestFullscreen?.().catch(() => {});
+        const p = document.exitFullscreen();
+        if (p && p.catch) p.catch(() => {});
+        return;
       }
+      const p = box.requestFullscreen?.();
+      if (p && p.catch) p.catch(() => {});
     });
 
     // 点击图片以外区域关闭(图片本身和顶部按钮点击不关闭)
