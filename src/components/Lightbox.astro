@@ -1,14 +1,15 @@
 ---
-// 全屏灯箱(PRD V1.1 §4.4)
+// 全屏灯箱(PRD V1.2 §4.4)
 // 用法:页面渲染 <Lightbox photos={[{ src, title, exif }]} id="lb-xxx" />,
 // 给缩略图加 class="lightbox-trigger" + data-lightbox={灯箱 id}(不带 = 默认实例)+ data-index={i},
-// 点击即在 i 处打开灯箱,←/→ 在 photos 数组内切换(项目页等)。
-// 若触发器自带 data-big(大图 URL)+ data-caption(标题),则进入"卡片浏览模式"(首页等):
-//   放大该卡片当前展示的图,←/→ 在本灯箱所有带 data-big 的卡片之间循环切换。
-//   每次显示都即时读取卡片当前的 data-big/data-caption,所以外部换图
-//   (如首页 3 天轮换)之后,放大与切换到的仍是墙面上正在显示的那批图。
+// 点击即在 i 处打开灯箱,←/→ 在 photos 数组内切换(项目页)。
+// 若触发器自带 data-big(大图 URL),则进入"卡片浏览模式"(首页精选墙):
+//   放大该卡片当前展示的图,←/→ 在本灯箱所有带 data-big 的卡片之间循环。
+//   每次显示即时读取卡片当前的 data-big,外部换图后仍与墙面一致。
+// 交互(PRD V1.2 §4.4):深色背景;左上角显示 当前序号/总数;右上角 全屏/放大/关闭;
+//   左右箭头在图片外(桌面端在视口两侧,移动端在底部控制条);大图加载显示占位;
+//   ESC/点击图片以外区域关闭;触屏左右滑动切换;照片标题与 EXIF 当前隐藏。
 // 同页可渲染多个实例(id 各不相同);默认实例兼容不带 data-lightbox 的旧触发器。
-// src 为 Cloudinary 大图 URL(1600w,由页面传入)
 
 interface ExifInfo {
   camera?: string;
@@ -33,39 +34,82 @@ const lbId = id;
 
 <div
   id={lbId}
-  class="lightbox fixed inset-0 z-50 flex items-center justify-center bg-white"
+  class="lightbox fixed inset-0 z-50 bg-black/95"
   role="dialog"
   aria-modal="true"
   aria-label="照片浏览"
   aria-hidden="true"
 >
-  <img
-    class="lb-img max-h-[80vh] max-w-[92vw] select-none bg-neutral-100 object-contain"
-    src=""
-    alt=""
-    draggable="false"
-  />
-  <p
-    class="lb-caption absolute inset-x-0 bottom-8 text-center text-xs tracking-wide text-ink/70"
-  ></p>
+  <!-- 顶部栏:左计数器,右 全屏/放大/关闭 -->
+  <div class="absolute inset-x-0 top-0 flex items-center justify-between px-5 py-4 sm:px-6">
+    <span class="lb-counter text-xs tracking-widest text-white/70"></span>
+    <div class="flex items-center gap-4">
+      <button
+        class="lb-fullscreen p-1 text-white/70 transition-colors hover:text-white"
+        aria-label="全屏"
+        title="全屏"
+      >
+        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M4 9V4h5m6 0h5v5m0 6v5h-5m-6 0H4v-5" />
+        </svg>
+      </button>
+      <button
+        class="lb-zoom p-1 text-white/70 transition-colors hover:text-white"
+        aria-label="放大"
+        title="放大 / 还原"
+      >
+        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="11" cy="11" r="7" />
+          <path d="m21 21-4.3-4.3M11 8v6M8 11h6" />
+        </svg>
+      </button>
+      <button
+        class="lb-close p-1 text-white/70 transition-colors hover:text-white"
+        aria-label="关闭"
+        title="关闭"
+      >
+        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true">
+          <path d="M6 6l12 12M18 6 6 18" />
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- 图片区(桌面端两侧留出箭头位,箭头不在图片里;移动端图片占满宽) -->
+  <div class="lb-stage absolute inset-0 flex items-center justify-center">
+    <img
+      class="lb-img max-h-[calc(100vh-6rem)] max-w-full select-none object-contain transition-transform duration-300 sm:max-w-[calc(100vw-8rem)]"
+      src=""
+      alt=""
+      draggable="false"
+    />
+  </div>
+
+  <!-- 大图加载占位(PRD §4.4 验收:大图加载时显示占位图) -->
+  <div class="lb-loading absolute inset-0 flex items-center justify-center">
+    <div class="lb-spinner"></div>
+  </div>
+
+  <!-- 桌面端箭头:固定在视口两侧,图片之外 -->
   <button
-    class="lb-prev hidden absolute left-4 top-1/2 -translate-y-1/2 p-3 text-2xl text-ink/60 transition-colors hover:text-ink"
+    class="lb-prev absolute left-0 top-1/2 hidden -translate-y-1/2 p-4 text-3xl text-white/70 transition-colors hover:text-white sm:block"
     aria-label="上一张"
   >
     &larr;
   </button>
   <button
-    class="lb-next hidden absolute right-4 top-1/2 -translate-y-1/2 p-3 text-2xl text-ink/60 transition-colors hover:text-ink"
+    class="lb-next absolute right-0 top-1/2 hidden -translate-y-1/2 p-4 text-3xl text-white/70 transition-colors hover:text-white sm:block"
     aria-label="下一张"
   >
     &rarr;
   </button>
-  <button
-    class="lb-close absolute right-5 top-5 p-2 text-2xl text-ink/60 transition-colors hover:text-ink"
-    aria-label="关闭"
-  >
-    &times;
-  </button>
+
+  <!-- 移动端底部控制条:上一张 / 计数 / 下一张(手机适配) -->
+  <div class="lb-mobile-bar absolute inset-x-0 bottom-0 flex items-center justify-between px-6 pb-6 sm:hidden">
+    <button class="lb-prev-m p-3 text-2xl text-white/80" aria-label="上一张">&larr;</button>
+    <span class="lb-counter-m text-xs tracking-widest text-white/70"></span>
+    <button class="lb-next-m p-3 text-2xl text-white/80" aria-label="下一张">&rarr;</button>
+  </div>
 </div>
 
 <script define:vars={{ photos, lbId }}>
@@ -78,10 +122,17 @@ const lbId = id;
 
     const box = document.getElementById(myId);
     if (!box) return;
+    const stage = box.querySelector(".lb-stage");
     const img = box.querySelector(".lb-img");
-    const caption = box.querySelector(".lb-caption");
+    const counter = box.querySelector(".lb-counter");
+    const counterM = box.querySelector(".lb-counter-m");
+    const loading = box.querySelector(".lb-loading");
     const prevBtn = box.querySelector(".lb-prev");
     const nextBtn = box.querySelector(".lb-next");
+    const prevBtnM = box.querySelector(".lb-prev-m");
+    const nextBtnM = box.querySelector(".lb-next-m");
+    const zoomBtn = box.querySelector(".lb-zoom");
+    const fullscreenBtn = box.querySelector(".lb-fullscreen");
     const closeBtn = box.querySelector(".lb-close");
 
     // 默认实例:兼容不带 data-lightbox 的旧触发器;具名实例只收自己 id 的触发器
@@ -92,46 +143,62 @@ const lbId = id;
     const triggers = Array.from(document.querySelectorAll(sel));
 
     let index = 0; // 数组浏览模式(photos[i])的当前位
-    let cardIndex = -1; // 卡片浏览模式(墙面 data-big)的当前卡片位;-1 = 数组模式
+    let cardIndex = -1; // 卡片浏览模式(带 data-big 的触发器)当前位;-1 = 数组模式
     let touchX = 0;
 
-    // 灯箱说明只显示标题(EXIF 信息不对外展示;数据仍保留在 content 里)
-    function captionText(p) {
-      return p.title ?? "";
+    function total() {
+      return cardIndex >= 0 ? triggers.length : myPhotos.length;
+    }
+
+    function updateNav() {
+      const n = total();
+      const cur = (cardIndex >= 0 ? cardIndex : index) + 1;
+      counter.textContent = n > 1 ? cur + " / " + n : "";
+      counterM.textContent = n > 1 ? cur + " / " + n : "";
+      const show = n > 1;
+      prevBtn?.classList.toggle("sm:hidden", !show);
+      nextBtn?.classList.toggle("sm:hidden", !show);
+      const bar = box.querySelector(".lb-mobile-bar");
+      if (bar) bar.classList.toggle("hidden", !show);
+    }
+
+    // 加载占位:换图时显示 spinner,大图 load 后隐藏
+    img.addEventListener("load", () => {
+      loading.style.opacity = "0";
+      loading.style.pointerEvents = "none";
+    });
+    function setLoading() {
+      loading.style.opacity = "1";
+      loading.style.pointerEvents = "";
+      img.classList.remove("lb-zoomed"); // 换图时还原放大
     }
 
     function show(i) {
       index = (i + myPhotos.length) % myPhotos.length;
+      setLoading();
       img.src = myPhotos[index].src;
-      img.alt = myPhotos[index].title ?? "";
-      caption.textContent = captionText(myPhotos[index]);
+      updateNav();
     }
 
-    // 卡片浏览:内容即时读卡片的 data-big / data-caption(点击/切换瞬间取值,
-    // 外部换图后仍是墙面上正在显示的那张);←/→ 在卡片之间循环
+    // 卡片浏览:内容即时读卡片的 data-big(点击/切换瞬间取值)
     function showCard(i) {
       const n = triggers.length;
       if (!n) return;
       cardIndex = ((i % n) + n) % n;
-      const el = triggers[cardIndex];
-      img.src = el.dataset.big;
-      img.alt = el.dataset.caption ?? "";
-      caption.textContent = el.dataset.caption ?? "";
+      setLoading();
+      img.src = triggers[cardIndex].dataset.big;
+      updateNav();
     }
 
     function openCard(el) {
       const i = triggers.indexOf(el);
       if (i < 0) return;
-      prevBtn?.classList.remove("hidden");
-      nextBtn?.classList.remove("hidden");
       showCard(i);
       openBox();
     }
 
     function open(i) {
       cardIndex = -1; // 切回数组模式
-      prevBtn?.classList.remove("hidden");
-      nextBtn?.classList.remove("hidden");
       show(i);
       openBox();
     }
@@ -146,11 +213,13 @@ const lbId = id;
       box.classList.remove("open");
       box.setAttribute("aria-hidden", "true");
       document.body.style.overflow = "";
+      if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+      img.classList.remove("lb-zoomed");
     }
 
     function step(delta) {
       if (cardIndex >= 0) {
-        showCard(cardIndex + delta); // 卡片间切换(首页照片墙)
+        showCard(cardIndex + delta); // 卡片间切换(首页精选墙)
         return;
       }
       show(index + delta); // 数组内切换(项目照片)
@@ -159,7 +228,7 @@ const lbId = id;
     triggers.forEach((el) => {
       el.addEventListener("click", () => {
         if (el.dataset.big) {
-          openCard(el); // 首页卡片:放大并从这张开始左右浏览
+          openCard(el);
           return;
         }
         const i = Number(el.dataset.index ?? 0);
@@ -167,22 +236,31 @@ const lbId = id;
       });
     });
 
-    prevBtn?.addEventListener("click", (e) => {
+    prevBtn?.addEventListener("click", (e) => { e.stopPropagation(); step(-1); });
+    nextBtn?.addEventListener("click", (e) => { e.stopPropagation(); step(1); });
+    prevBtnM?.addEventListener("click", (e) => { e.stopPropagation(); step(-1); });
+    nextBtnM?.addEventListener("click", (e) => { e.stopPropagation(); step(1); });
+    closeBtn?.addEventListener("click", (e) => { e.stopPropagation(); close(); });
+
+    // 放大:1x ↔ 2x(样式见 global.css .lb-zoomed)
+    zoomBtn?.addEventListener("click", (e) => {
       e.stopPropagation();
-      step(-1);
-    });
-    nextBtn?.addEventListener("click", (e) => {
-      e.stopPropagation();
-      step(1);
-    });
-    closeBtn?.addEventListener("click", (e) => {
-      e.stopPropagation();
-      close();
+      img.classList.toggle("lb-zoomed");
     });
 
-    // 点击背景关闭
+    // 全屏(浏览器 Fullscreen API;iOS Safari 不支持时静默无操作)
+    fullscreenBtn?.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (document.fullscreenElement) {
+        document.exitFullscreen().catch(() => {});
+      } else {
+        box.requestFullscreen?.().catch(() => {});
+      }
+    });
+
+    // 点击图片以外区域关闭(图片本身和顶部按钮点击不关闭)
     box.addEventListener("click", (e) => {
-      if (e.target === box) close();
+      if (e.target === box || e.target === stage) close();
     });
 
     // 键盘(同一时刻最多一个灯箱处于 open)

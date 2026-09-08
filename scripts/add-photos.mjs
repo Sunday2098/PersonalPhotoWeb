@@ -3,11 +3,12 @@
 // 用法:
 //   node scripts/add-photos.mjs                    # 交互式选择归属项目
 //   node scripts/add-photos.mjs --project shan-yu-hu
+//   node scripts/add-photos.mjs --featured          # 导入为首页 Hero 轮播图(不归属项目)
 //   node scripts/add-photos.mjs --no-build          # 跳过自动构建
 //
 // 流程:扫描 inbox/ → 跳过已有数据的 → 读 EXIF(相机/焦距/ISO/拍摄时间)
 //       → 上传 Cloudinary(public_id = photos/<文件名>) → 生成 src/content/photos/<文件名>.md
-//       → 删除本地原图(照片只存 Cloudinary) → npm run build
+//       (--featured 时生成到 src/content/featured/) → 删除本地原图(照片只存 Cloudinary) → npm run build
 //
 // 密钥从 .env 读取(CLOUDINARY_CLOUD_NAME / CLOUDINARY_API_KEY / CLOUDINARY_API_SECRET),
 // .env 已 gitignore,绝不提交。
@@ -22,6 +23,7 @@ import sharp from "sharp";
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const inboxDir = path.join(root, "inbox");
 const contentDir = path.join(root, "src", "content", "photos");
+const featuredDir = path.join(root, "src", "content", "featured");
 const projectsDir = path.join(root, "src", "content", "projects");
 
 const IMG_EXT = [".jpg", ".jpeg", ".png", ".webp"];
@@ -31,6 +33,7 @@ const opt = (name) => {
   return i >= 0 ? args[i + 1] : undefined;
 };
 const projectArg = opt("--project");
+const asFeatured = args.includes("--featured"); // 首页 Hero 轮播图(不归属项目)
 const noBuild = args.includes("--no-build");
 
 // ---------- 小工具 ----------
@@ -153,17 +156,24 @@ async function main() {
     return;
   }
 
-  // 跳过已有数据的
-  const existing = new Set((await readdir(contentDir)).map((f) => path.basename(f, ".md")));
+  // 跳过已有数据的(--featured 时对查 featured 目录)
+  const outDir = asFeatured ? featuredDir : contentDir;
+  const existing = new Set((await readdir(outDir)).map((f) => path.basename(f, ".md")));
   const todo = files.filter((f) => !existing.has(path.basename(f, path.extname(f))));
   const skipped = files.length - todo.length;
   if (skipped) console.log(`跳过 ${skipped} 张(已有数据文件)`);
 
   if (todo.length === 0) return;
 
-  const projects = await readProjects();
-  if (projects.length === 0) throw new Error("没有找到任何项目,先在 src/content/projects/ 里建一个");
-  const project = await chooseProject(projects);
+  // --featured 导入为首页 Hero 图,不选项目;其余必须选项目
+  let chosen = "";
+  if (asFeatured) {
+    await mkdir(featuredDir, { recursive: true });
+  } else {
+    const projects = await readProjects();
+    if (projects.length === 0) throw new Error("没有找到任何项目,先在 src/content/projects/ 里建一个");
+    chosen = await chooseProject(projects);
+  }
 
   const today = new Date().toISOString().slice(0, 10);
 
@@ -225,7 +235,7 @@ async function main() {
       }
     }
 
-    // 只写读到的 EXIF 字段(schema 里 iso 必须是数字,空值会构建失败)
+    // 只写读到的 EXIF 字段(schema 里 iso 必须是数字,空值会构建失败);Hero 图不需要项目归属
     const exifLines = [];
     if (camera) exifLines.push(`  camera: ${yamlStr(camera)}`);
     if (focal) exifLines.push(`  focalLength: ${yamlStr(focal)}`);
@@ -236,15 +246,16 @@ async function main() {
       `title: ""`, // 标题默认留空,命名由用户在 .md 里手动编辑
       `filename: ${yamlStr(f)}`,
       `date: "${date}"`,
-      `project: ${yamlStr(project)}`,
-      ...(exifLines.length ? ["exif:", ...exifLines] : []),
+      ...(asFeatured ? [] : [`project: ${yamlStr(chosen)}`]),
+      ...(exifLines.length && !asFeatured ? ["exif:", ...exifLines] : []),
       "---",
       "",
     ].join("\n");
 
-    await writeFile(path.join(contentDir, `${name}.md`), frontmatter, "utf8");
+    await writeFile(path.join(outDir, `${name}.md`), frontmatter, "utf8");
     await unlink(src); // 照片已上云,删除本地原图
-    console.log(`✓ ${f} → ${project} (${date}${camera ? `, ${camera}` : ""}${focal ? `, ${focal}` : ""}${iso ? `, ISO ${iso}` : ""})`);
+    const dest = asFeatured ? "首页Hero" : chosen;
+    console.log(`✓ ${f} → ${dest} (${date}${camera ? `, ${camera}` : ""}${focal ? `, ${focal}` : ""}${iso ? `, ISO ${iso}` : ""})`);
     console.log(`  已上传:${upload.secure_url}`);
   }
 

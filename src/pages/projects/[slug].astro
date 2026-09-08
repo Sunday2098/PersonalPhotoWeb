@@ -34,7 +34,7 @@ const lightboxPhotos = photos.map((p) => ({
     </nav>
 
     <header class="mx-auto max-w-2xl pb-14 pt-10 text-center">
-      <h1 class="text-3xl font-light tracking-wide">{project.data.title}</h1>
+      <h1 class="text-3xl font-light tracking-wide dark:text-neutral-100">{project.data.title}</h1>
     </header>
 
     <!-- 照片集:瀑布流保留原始比例(拍摄手记文字已隐藏) -->
@@ -46,7 +46,7 @@ const lightboxPhotos = photos.map((p) => ({
             data-index={i}
             aria-label={`查看大图:${p.data.title ?? ""}`}
           >
-            <div class="overflow-hidden bg-neutral-100">
+            <div class="overflow-hidden bg-neutral-100 dark:bg-neutral-900">
               <img
                 src={resolveImage(p.data.filename)}
                 alt={p.data.alt ?? p.data.title ?? ""}
@@ -55,7 +55,7 @@ const lightboxPhotos = photos.map((p) => ({
                 class="h-auto w-full transition-transform duration-700 ease-out group-hover:scale-[1.03]"
               />
             </div>
-            <span class="mt-3 block text-sm text-ink/85">{p.data.title}</span>
+            <span class="mt-3 block text-sm text-ink/85 dark:text-neutral-200/85">{p.data.title}</span>
           </button>
         ))
       }

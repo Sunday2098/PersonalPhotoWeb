@@ -1,10 +1,13 @@
 @import "@fontsource-variable/inter";
 @import "tailwindcss";
 
-/* 设计基调:Anna Venezia 优雅极简(PRD V1.1 §1.2 / §3)
-   米白 #FAFAF8 大面积留白,文字 #1A1A1A,辅助 #8A8A8A,陶土 #C4A882 点缀 */
+/* 暗色模式:class 驱动(html.dark),由 BaseLayout 的主题切换按钮控制(PRD V1.2 风格) */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* 设计基调(PRD V1.2):纯白 #FFFFFF / 纯黑 #000000 双主题,
+   文字 #1A1A1A,辅助 #8A8A8A,陶土 #C4A882 点缀 */
 @theme {
-  --color-cream: #fafaf8;
+  --color-cream: #ffffff;
   --color-ink: #1a1a1a;
   --color-mist: #8a8a8a;
   --color-terra: #c4a882;
@@ -19,17 +22,17 @@ html {
 }
 
 body {
-  @apply bg-cream text-ink font-sans antialiased;
+  @apply bg-cream text-ink font-sans antialiased dark:bg-black dark:text-neutral-100;
   font-size: 15px;
   line-height: 1.8;
 }
 
 ::selection {
   background: #1a1a1a;
-  color: #fafaf8;
+  color: #ffffff;
 }
 
-/* 链接:陶土色 hover 点缀(PRD §3.1) */
+/* 链接:陶土色 hover 点缀(两主题一致) */
 a {
   transition: color 0.2s ease;
 }
@@ -50,13 +53,57 @@ a:hover {
   opacity: 1;
 }
 
+/* 灯箱大图:放大模式(PRD V1.2 §4.4 右上角放大按钮,1x ↔ 2x) */
+.lb-zoomed {
+  transform: scale(2);
+  transform-origin: center center;
+  cursor: zoom-out;
+}
+
+/* 灯箱加载占位 spinner */
+.lb-spinner {
+  width: 32px;
+  height: 32px;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-top-color: #c4a882;
+  border-radius: 50%;
+  animation: lb-spin 0.8s linear infinite;
+}
+@keyframes lb-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* 首页精选墙悬停光晕:跟随鼠标的柔光(PRD V1.2 首页交互) */
+.glow-card {
+  position: relative;
+}
+.glow-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  background: radial-gradient(
+    420px circle at var(--mx, 50%) var(--my, 50%),
+    rgba(196, 168, 130, 0.35),
+    transparent 65%
+  );
+  mix-blend-mode: screen;
+}
+.glow-card:hover::after {
+  opacity: 1;
+}
+
 /* 拍摄手记(Markdown 渲染) */
 .story p {
-  @apply mb-5 leading-loose text-ink/90;
+  @apply mb-5 leading-loose text-ink/90 dark:text-neutral-200/90;
 }
 .story blockquote {
   @apply mb-5 border-l-2 border-terra/60 pl-5 text-mist;
 }
 .story strong {
-  @apply font-medium text-ink;
+  @apply font-medium text-ink dark:text-neutral-100;
 }

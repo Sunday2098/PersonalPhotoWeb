@@ -22,10 +22,11 @@ const photos = defineCollection({
   schema: z.object({
     id: z.string(),
     title: z.string().optional().nullable(), // 照片标题(nullable 容忍 YAML 空值 null,防手改清空标题导致构建失败)
-    filename: z.string(), // 图片文件名(src/assets/photos/ 下)
+    filename: z.string(), // 图片文件名(Cloudinary photos/ 下)
     alt: z.string().optional(), // 图片描述(无障碍/SEO)
     date: z.string(), // 拍摄日期 YYYY-MM-DD(首页排序用)
     project: z.string(), // 所属项目 id
+    featured: z.boolean().optional(), // 首页精选墙标记(PRD V1.2:首页展示带此标记的最新 12 张)
     exif: z
       .object({
         camera: z.string().optional(),
@@ -37,4 +38,17 @@ const photos = defineCollection({
   }),
 });
 
-export const collections = { projects, photos };
+// 首页 Hero 轮播图(PRD V1.2):独立路径便于后期维护,不属于任何项目
+// 数据源:src/content/featured/*.md,图片同样托管在 Cloudinary photos/ 下
+const featured = defineCollection({
+  loader: glob({ pattern: "**/*.md", base: "./src/content/featured" }),
+  schema: z.object({
+    id: z.string(),
+    title: z.string().optional().nullable(),
+    filename: z.string(),
+    alt: z.string().optional(),
+    date: z.string().optional().nullable(), // 排序用,可留空
+  }),
+});
+
+export const collections = { projects, photos, featured };

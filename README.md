@@ -1,11 +1,11 @@
 # 夏至未至 · 个人摄影分享网站
 
 基于 [Astro](https://astro.build) + [Tailwind CSS](https://tailwindcss.com) 的个人摄影站,
-按 `../01-个人摄影网站产品需求文档V1.1.md` 实现。
+按 `../03-个人摄影网站产品需求文档V1.2.md` 实现。
 
-设计方向:融合 **Anna Venezia 的优雅极简**(大量留白、干净排版、柔和色调:
-米白 `#FAFAF8` / 墨色 `#1A1A1A` / 雾灰 `#8A8A8A` / 陶土 `#C4A882`)
-与 **Tom Hull 的项目叙事**(以"项目"组织作品,每个项目配拍摄手记文字)。
+设计方向:纯白 / 纯黑双主题(导航栏可切换),陶土 `#C4A882` 点缀;
+以"项目"组织作品(10 个专题),图片全部托管 [Cloudinary](https://cloudinary.com),
+GitHub → Cloudflare Pages 自动部署。
 
 ## 快速开始
 
@@ -20,17 +20,24 @@ npm run preview    # 预览构建产物
 
 | 路由 | 说明 |
 |------|------|
-| `/` | 首页:项目照片墙 —— 每个项目精选 1 张(统一比例),每 3 天自动轮换;点击放大,←/→ 在首页各照片间切换 |
-| `/projects/` | 项目列表:封面 + 标题 + 一句话简介 + 时间/地点 |
-| `/projects/[slug]/` | 项目详情:拍摄手记(Markdown 正文)+ 照片瀑布流,点击开灯箱 |
+| `/` | 首页:全宽 Hero 轮播(点击左右淡入淡出)+ 12 张精选墙(原始比例、悬停光晕、点击放大) |
+| `/projects/` | 项目列表:封面 + 标题 + 一句话简介 + 拍摄时间/地点 |
+| `/projects/[slug]/` | 项目详情:照片瀑布流,点击开灯箱 |
 | `/about/` | 关于:自我介绍 + 常用器材清单 |
 
-**灯箱浏览**(全站通用):←/→ 切换、ESC / 点击外部关闭、触屏左右滑动,
-底部显示 标题 · 相机 · 焦距 · ISO(取真实 EXIF)。
+**灯箱**(PRD V1.2 §4.4):深色背景;左上角 当前序号/总数;右上角 全屏 / 放大(1x↔2x)/ 关闭;
+←/→ 切换(桌面端箭头在图片外两侧,移动端在底部控制条);ESC / 点击图片外关闭;触屏滑动;加载占位动画。
 
-**首页 3 天轮换**(纯前端,无需重新部署):按 3 天一个周期,用 (周期号 | 项目 id) 的
-哈希对项目照片数取模选图 —— 同一周期内所有访客看到同一张,到周期切换后重新打开页面
-即换一张。改 `src/pages/index.astro` 里的 `pickIndex` 时须同步改页面底部内联脚本。
+**暗色模式**:导航栏太阳/月亮按钮切换纯白 / 纯黑;首次默认浅色,选择后记忆到本地。
+
+## 首页内容维护
+
+- **Hero 轮播图**来自独立集合 `src/content/featured/`(单独路径便于维护):
+  ```bash
+  node scripts/add-photos.mjs --featured   # 把 inbox/ 里的图导入为 Hero 图
+  ```
+- **12 张精选墙**:在 `src/content/photos/*.md` 里加一行 `featured: true`,
+  首页自动取带标记的最新 12 张(按拍摄日期),原始比例不裁切。
 
 ## 一键添加照片(推荐)
 
@@ -39,27 +46,28 @@ npm run preview    # 预览构建产物
 ```bash
 node scripts/add-photos.mjs                     # 交互式选择归属项目
 node scripts/add-photos.mjs --project shan-yu-hu  # 直接指定项目
-node scripts/add-photos.mjs --no-build           # 跳过自动构建
+node scripts/add-photos.mjs --featured          # 导入为首页 Hero 轮播图
+node scripts/add-photos.mjs --no-build          # 跳过自动构建
 ```
 
 脚本自动:读取 EXIF(相机 / 焦距 / ISO / 拍摄时间)→ 上传 Cloudinary →
-生成 `src/content/photos/<文件名>.md` → 删除本地原图 → 重新构建。
-超过 Cloudinary 上传上限(10MB)的图片会自动压缩到 1600px(JPEG q82)后上传。
+生成内容 .md → 删除本地原图 → 重新构建。
+超过 Cloudinary 上传上限(10MB)的图片会自动压缩到 1920px(JPEG q82)后上传。
 标题默认留空,想命名就编辑生成的 `.md` 里的 `title`。
 
-## 手动添加新照片 / 新项目
+## 手动添加照片 / 项目
 
-1. 把原图放进 `src/assets/photos/`。
-2. 在 `src/content/photos/` 新建 `.md` 文件:
+1. 先把图片上传到 Cloudinary(public_id = `photos/<文件名>`,不带扩展名),
+   再在 `src/content/photos/` 新建 `.md`:
 
 ```markdown
 ---
-id: 唯一标识(如 dsc-1234)
-title: 照片标题
+id: dsc-1234
+title: ""              # 空标题必须带引号
 filename: dsc-1234.jpg
-alt: 图片描述
-date: "2026-08-28"
-project: 所属项目 id
+date: "2025-03-14"     # 日期必须带引号
+project: gu-jian-da-guan
+featured: true         # 可选:首页精选墙标记
 exif:
   camera: NIKON Z 5
   focalLength: 200mm
@@ -67,35 +75,47 @@ exif:
 ---
 ```
 
-3. 新项目则在 `src/content/projects/` 新建 `.md`,frontmatter 为
-   `id / title / description / coverImage / date / location`,
-   **手记写在 Markdown 正文**(支持段落、`**加粗**`、`> 引用` 等)。
-4. 重新 `npm run build`。
+2. 新项目则在 `src/content/projects/` 新建 `.md`,frontmatter 为
+   `id / title / description / coverImage / date / location`。
+3. 重新 `npm run build`。
 
-> 注意:`date` 等 YAML 值要加引号(如 `"2026-04-19"`),否则会被解析成日期对象。
-> 清空标题时写 `title: ""`(带引号);裸写 `title: ` 会被 YAML 解析成 null,虽然 schema 已容忍,但页面显示会不一致。
+> YAML 注意:`date` 等值要加引号;清空标题写 `title: ""`;裸写 `title: ` 会被解析成 null。
 
-## 图片性能(PRD §5.1)
+## 图片(Cloudinary CDN)
 
-- Astro 构建时自动生成 **WebP** 多档尺寸(缩略图 800w、灯箱大图 1600w,按需加载)。
-- 所有图片均带 `loading="lazy"` 懒加载。
+- 全部图片托管 Cloudinary,本地不存图;URL 统一由 `src/lib/images.ts` 生成:
+  `f_auto,q_auto,w_{宽度}` —— 自动最优格式(WebP/AVIF)+ 按需压缩。
+- 宽度档位:缩略图 800w / 首页精选 1200w / Hero 与灯箱大图 1600w。
+- 图片均带 `loading="lazy"`(Hero 首图 `fetchpriority="high"` 优先加载)。
+
+## 部署
+
+`git push` 到 GitHub master 即触发 Cloudflare Pages 自动构建,无需其他操作。
+Cloudflare Pages 环境变量需配置 `PUBLIC_CLOUDINARY_CLOUD_NAME`(本地则在 `.env`)。
+
+## 注意事项
+
+- ⚠️ **系统时钟要准**:Cloudinary 上传签名依赖本机时间,偏差超 1 小时报 `Stale request`,同步时间再跑。
+- `.env`(Cloudinary 密钥)已 gitignore,绝不提交。
+- 灯箱与主题切换的内联脚本必须写纯 JS(无 TS 注解)。
+- 原图上传后即从本地删除,请自行做好原图备份。
 
 ## 目录结构
 
 ```
 astro-site/
-├── astro.config.mjs        # Tailwind Vite 插件
-├── src/
-│   ├── content.config.ts   # projects + photos 内容集合 schema(对应 PRD V1.1 接口)
-│   ├── content/projects/   # 项目数据:frontmatter + 拍摄手记正文(Markdown)
-│   ├── content/photos/     # 照片数据(Markdown,一处一个文件)
-│   ├── assets/photos/      # 原图资源
-│   ├── layouts/BaseLayout.astro   # 导航(首页/项目/关于)+ 页脚社交入口
-│   ├── components/         # Lightbox(全屏灯箱)/ ProjectCard(项目卡片)
-│   ├── lib/images.ts       # 文件名 → Astro 图片资源映射
-│   ├── styles/global.css   # Tailwind 入口 + Anna Venezia 主题 token
-│   └── pages/              # index / projects/ / projects/[slug] / about
-└── public/                 # favicon 等静态资源
+├── astro.config.mjs            # Tailwind Vite 插件
+├── scripts/add-photos.mjs      # 一键导入流水线(含 --featured)
+└── src/
+    ├── content.config.ts       # projects + photos + featured 集合 schema
+    ├── content/projects/       # 项目数据(10 个)
+    ├── content/photos/         # 照片数据(100+ 张,featured: true 上首页精选墙)
+    ├── content/featured/       # 首页 Hero 轮播图(独立路径)
+    ├── layouts/BaseLayout.astro    # 导航(项目/关于)+ 主题切换 + 页脚
+    ├── components/             # Lightbox(全屏灯箱)/ ProjectCard(项目卡片)
+    ├── lib/images.ts           # Cloudinary URL 统一入口
+    ├── styles/global.css       # Tailwind 入口 + 双主题 token + 光晕/灯箱样式
+    └── pages/                  # index / projects/ / projects/[slug] / about
 ```
 
-> 上层目录的 `photos/`、`index.html` 等是旧版纯静态站的遗留文件,与本项目无关。
+> 上层目录的 `photos/`、`css/`、`js/`、`index.html` 是旧版纯静态站遗留文件,与本项目无关。
