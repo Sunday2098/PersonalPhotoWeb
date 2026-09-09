@@ -309,11 +309,13 @@ async function listFeatured() {
   );
 }
 
-// 把照片加入首页 Hero(生成 featured 数据文件;同名已存在则跳过,照片本体不动)
+// 把照片加入首页 Hero(生成 featured 数据文件;该照片已在 Hero 中则跳过,照片本体不动)
 async function addHero(filename) {
   const base = path.basename(filename, path.extname(filename));
   const file = path.join(featuredDir, `${base}.md`);
+  // 去重不只看同名文件,还要按 id / filename 匹配既有条目(文件名与 id 可能不一致)
   if (await fileExists(file)) return { filename, ok: true, exists: true };
+  if (await findFeaturedFile(base)) return { filename, ok: true, exists: true };
   let date = new Date().toISOString().slice(0, 10);
   const ph = (await listPhotos()).find((p) => p.filename === filename);
   if (ph?.date) date = ph.date;
@@ -330,14 +332,27 @@ async function addHero(filename) {
   return { filename, ok: true, exists: false };
 }
 
+// 按 frontmatter id 匹配实际文件名删除(数据文件名不一定等于 id,如 hero-1.md 的 id 是 hero-cheng-ye)
+async function findFeaturedFile(id) {
+  const files = (await readdir(featuredDir)).filter((f) => f.endsWith(".md"));
+  for (const f of files) {
+    const fm = parseFrontmatter(await readFile(path.join(featuredDir, f), "utf8"));
+    if ((fm.id ?? path.basename(f, ".md")) === id) return f;
+  }
+  return null;
+}
+
 async function removeHero(ids) {
   const results = [];
   for (const id of ids) {
     let removed = false;
-    try {
-      await unlink(path.join(featuredDir, `${id}.md`));
-      removed = true;
-    } catch {}
+    const f = await findFeaturedFile(id);
+    if (f) {
+      try {
+        await unlink(path.join(featuredDir, f));
+        removed = true;
+      } catch {}
+    }
     results.push({ id, removed });
   }
   return results;
@@ -407,9 +422,17 @@ async function deletePhotos(ids, destroy) {
       await unlink(file);
       removed = true;
     } catch {}
-    // 联动清理:该照片若在首页 Hero 里,一并移除对应数据文件
+    // 联动清理:该照片若在首页 Hero 里,按 id 或 filename 匹配并移除对应数据文件
     try {
-      await unlink(path.join(featuredDir, `${id}.md`));
+      const feFiles = (await readdir(featuredDir)).filter((f) => f.endsWith(".md"));
+      for (const f of feFiles) {
+        const fm = parseFrontmatter(await readFile(path.join(featuredDir, f), "utf8"));
+        const fmid = fm.id ?? path.basename(f, ".md");
+        const fbase = String(fm.filename ?? "").replace(/\.[^.]+$/, "");
+        if (fmid === id || fbase === id || fbase === publicId) {
+          await unlink(path.join(featuredDir, f)).catch(() => {});
+        }
+      }
     } catch {}
     let cloud = "skipped";
     if (destroy && removed) {
