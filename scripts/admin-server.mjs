@@ -297,6 +297,98 @@ async function addPhoto({ name, data, project = "", featured = false }) {
   };
 }
 
+// ---------- 项目封面 / 首页 Hero / 精选标记 ----------
+
+async function listFeatured() {
+  const files = (await readdir(featuredDir)).filter((f) => f.endsWith(".md"));
+  return Promise.all(
+    files.map(async (f) => {
+      const fm = parseFrontmatter(await readFile(path.join(featuredDir, f), "utf8"));
+      return { id: fm.id ?? path.basename(f, ".md"), ...fm };
+    }),
+  );
+}
+
+// 把照片加入首页 Hero(生成 featured 数据文件;同名已存在则跳过,照片本体不动)
+async function addHero(filename) {
+  const base = path.basename(filename, path.extname(filename));
+  const file = path.join(featuredDir, `${base}.md`);
+  if (await fileExists(file)) return { filename, ok: true, exists: true };
+  let date = new Date().toISOString().slice(0, 10);
+  const ph = (await listPhotos()).find((p) => p.filename === filename);
+  if (ph?.date) date = ph.date;
+  const frontmatter = [
+    "---",
+    `id: ${yamlStr(base)}`,
+    `title: ""`,
+    `filename: ${yamlStr(filename)}`,
+    `date: "${date}"`,
+    "---",
+    "",
+  ].join("\n");
+  await writeFile(file, frontmatter, "utf8");
+  return { filename, ok: true, exists: false };
+}
+
+async function removeHero(ids) {
+  const results = [];
+  for (const id of ids) {
+    let removed = false;
+    try {
+      await unlink(path.join(featuredDir, `${id}.md`));
+      removed = true;
+    } catch {}
+    results.push({ id, removed });
+  }
+  return results;
+}
+
+// 设置项目封面:改写项目 .md 的 coverImage 行
+async function setProjectCover(projectId, filename) {
+  const proj = (await listProjects()).find((pr) => pr.id === projectId);
+  if (!proj) throw new Error("项目不存在");
+  const file = path.join(projectsDir, proj.file);
+  const lines = (await readFile(file, "utf8")).split("\n");
+  const i = lines.findIndex((l) => /^coverImage:\s*/.test(l));
+  if (i >= 0) {
+    lines[i] = `coverImage: ${yamlStr(filename)}`;
+  } else {
+    lines.splice(1, 0, `coverImage: ${yamlStr(filename)}`); // 插到 id 行后
+  }
+  await writeFile(file, lines.join("\n"), "utf8");
+  return { projectId, filename };
+}
+
+// 精选标记开关:在照片 .md 里加/删 featured: true 行
+async function setFeaturedFlag(ids, value) {
+  const results = [];
+  for (const id of ids) {
+    const file = path.join(photosDir, `${id}.md`);
+    let md;
+    try {
+      md = await readFile(file, "utf8");
+    } catch {
+      results.push({ id, ok: false });
+      continue;
+    }
+    const lines = md.split("\n");
+    const i = lines.findIndex((l) => /^featured:\s*/.test(l));
+    if (value) {
+      if (i < 0) {
+        const j = lines.findIndex((l) => /^project:\s*/.test(l));
+        lines.splice(j >= 0 ? j : lines.length, 0, "featured: true");
+      } else {
+        lines[i] = "featured: true";
+      }
+    } else if (i >= 0) {
+      lines.splice(i, 1);
+    }
+    await writeFile(file, lines.join("\n"), "utf8");
+    results.push({ id, ok: true });
+  }
+  return results;
+}
+
 // ---------- 删除照片 / 删除项目 ----------
 
 // 删除照片:删 .md(可选连同 Cloudinary 资源一起删,public_id 从 filename 解析)
@@ -314,6 +406,10 @@ async function deletePhotos(ids, destroy) {
     try {
       await unlink(file);
       removed = true;
+    } catch {}
+    // 联动清理:该照片若在首页 Hero 里,一并移除对应数据文件
+    try {
+      await unlink(path.join(featuredDir, `${id}.md`));
     } catch {}
     let cloud = "skipped";
     if (destroy && removed) {
@@ -471,6 +567,45 @@ const server = http.createServer(async (req, res) => {
         results.push(await addPhoto({ name: f.name, data: f.data, project, featured }));
       }
       return json(res, 200, { results });
+    }
+    if (p === "/api/featured") {
+      if (req.method === "GET") return json(res, 200, await listFeatured());
+      if (req.method === "POST") {
+        const body = await readBody(req);
+        const { files = [] } = body;
+        if (!Array.isArray(files) || files.length === 0) {
+          return json(res, 400, { error: "参数缺失:files[]" });
+        }
+        const results = [];
+        for (const f of files) {
+          if (f?.filename) results.push(await addHero(String(f.filename)));
+        }
+        return json(res, 200, { results });
+      }
+      if (req.method === "DELETE") {
+        const body = await readBody(req);
+        const { ids = [] } = body;
+        if (!Array.isArray(ids) || ids.length === 0) {
+          return json(res, 400, { error: "参数缺失:ids[]" });
+        }
+        return json(res, 200, { results: await removeHero(ids) });
+      }
+    }
+    if (p === "/api/project-cover" && req.method === "POST") {
+      const body = await readBody(req);
+      const { projectId = "", filename = "" } = body;
+      if (!projectId || !filename) {
+        return json(res, 400, { error: "参数缺失:projectId / filename" });
+      }
+      return json(res, 200, await setProjectCover(projectId, filename));
+    }
+    if (p === "/api/featured-flag" && req.method === "POST") {
+      const body = await readBody(req);
+      const { ids = [], value = true } = body;
+      if (!Array.isArray(ids) || ids.length === 0) {
+        return json(res, 400, { error: "参数缺失:ids[]" });
+      }
+      return json(res, 200, { results: await setFeaturedFlag(ids, value) });
     }
     if (p === "/api/photo" && req.method === "DELETE") {
       const body = await readBody(req);

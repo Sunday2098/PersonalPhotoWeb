@@ -43,11 +43,16 @@
   .ph .tag { position: absolute; left: 0; right: 0; bottom: 0; padding: 3px 6px; font-size: 11px; color: #fff; background: linear-gradient(transparent, rgba(0,0,0,.7)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .ph.sel { border-color: var(--terra); box-shadow: 0 0 0 2px var(--sel); }
   .ph.dragging { opacity: .4; }
-  .del { position: absolute; top: 4px; right: 4px; width: 22px; height: 22px; border: none; border-radius: 4px; background: rgba(0,0,0,.55); color: #fff; font-size: 12px; line-height: 1; cursor: pointer; opacity: 0; transition: opacity .15s; }
-  .ph:hover .del, .proj:hover .del { opacity: 1; }
-  .del:hover { background: #b0392e; }
+  .acts { position: absolute; top: 4px; right: 4px; display: flex; flex-direction: column; gap: 4px; opacity: 0; transition: opacity .15s; }
+  .ph:hover .acts { opacity: 1; }
+  .act { width: 22px; height: 22px; border: none; border-radius: 4px; background: rgba(0,0,0,.55); color: #fff; font-size: 12px; line-height: 1; cursor: pointer; }
+  .act:hover { background: rgba(0,0,0,.85); }
+  .act.del:hover { background: #b0392e; }
+  .badge { padding: 1px 6px; border-radius: 3px; background: var(--terra); color: #fff; font-size: 11px; pointer-events: none; }
   .proj { position: relative; }
-  .proj .del { width: 20px; height: 20px; font-size: 11px; }
+  .proj .del { position: absolute; top: 6px; right: 6px; width: 20px; height: 20px; border: none; border-radius: 4px; background: rgba(0,0,0,.4); color: #fff; font-size: 11px; line-height: 1; cursor: pointer; opacity: 0; transition: opacity .15s; }
+  .proj:hover .del { opacity: 1; }
+  .proj .del:hover { background: #b0392e; }
   .danger { background: #b0392e !important; border-color: #b0392e !important; color: #fff !important; }
   .danger:hover { background: #8f2d24 !important; }
   #push-log { background: #f7f7f5; border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; font: 12px/1.6 Consolas, monospace; white-space: pre-wrap; max-height: 260px; overflow-y: auto; margin-bottom: 12px; min-height: 60px; }
@@ -97,6 +102,7 @@
       <span id="selCount">已选 0 张</span>
       <span style="color:var(--mist);font-size:12px">拖拽任意一张到左侧项目卡片,或直接点击左侧目标项目</span>
       <button class="btn ghost" id="selAll" style="margin-left:auto">全选</button>
+      <button class="btn ghost" id="selFeatured">设为精选</button>
       <button class="btn ghost" id="selClear">取消选择</button>
       <button class="btn danger" id="selDelete">删除所选</button>
     </div>
@@ -164,7 +170,7 @@
 <script>
 // 后台管理前端(纯原生 JS,配合 scripts/admin-server.mjs)
 (function () {
-  var state = { projects: [], photos: [], current: null, selected: new Set(), cloudName: "" };
+  var state = { projects: [], photos: [], featured: [], current: null, selected: new Set(), cloudName: "" };
   var $ = function (id) { return document.getElementById(id); };
 
   function toast(msg) {
@@ -185,11 +191,14 @@
       fetch("/api/config").then(function (r) { return r.json(); }),
       fetch("/api/projects").then(function (r) { return r.json(); }),
       fetch("/api/photos").then(function (r) { return r.json(); }),
+      fetch("/api/featured").then(function (r) { return r.json(); }),
     ]).then(function (rs) {
       state.cloudName = rs[0].cloudName;
       state.projects = rs[1];
       state.photos = rs[2];
-      if (state.current && !state.projects.some(function (p) { return p.id === state.current; })) {
+      state.featured = rs[3];
+      if (state.current !== "__hero__" && state.current &&
+        !state.projects.some(function (p) { return p.id === state.current; })) {
         state.current = null;
       }
       state.selected.clear();
@@ -198,14 +207,46 @@
   }
 
   function photosOf(pid) {
+    if (pid === "__hero__") {
+      return state.featured.map(function (f) {
+        return { id: f.id, filename: f.filename, title: f.title, isHero: true };
+      });
+    }
     return state.photos.filter(function (p) { return p.project === pid; });
   }
 
   function render() {
-    // 项目列表
+    // 项目列表(顶部固定一张「首页 Hero 轮播」卡片,拖照片进去即上首页)
     $("projTotal").textContent = state.projects.length;
     var list = $("projList");
     list.innerHTML = "";
+    var heroDiv = document.createElement("div");
+    heroDiv.className = "proj" + (state.current === "__hero__" ? " active" : "");
+    heroDiv.innerHTML =
+      '<span class="name">🏠 首页 Hero 轮播</span>' +
+      '<span class="count">' + state.featured.length + " 张</span>";
+    heroDiv.title = "首页主体大图轮播:拖照片进来即加入,✕ 移出";
+    heroDiv.addEventListener("click", function () {
+      if (state.selected.size > 0) {
+        addHero(Array.from(state.selected));
+        return;
+      }
+      state.current = "__hero__";
+      state.selected.clear();
+      render();
+    });
+    heroDiv.addEventListener("dragover", function (e) {
+      e.preventDefault();
+      heroDiv.classList.add("dragover");
+    });
+    heroDiv.addEventListener("dragleave", function () { heroDiv.classList.remove("dragover"); });
+    heroDiv.addEventListener("drop", function (e) {
+      e.preventDefault();
+      heroDiv.classList.remove("dragover");
+      var ids = JSON.parse(e.dataTransfer.getData("text/plain") || "[]");
+      if (ids.length) addHero(ids);
+    });
+    list.appendChild(heroDiv);
     state.projects.forEach(function (p) {
       var div = document.createElement("div");
       div.className = "proj" + (p.id === state.current ? " active" : "");
@@ -253,47 +294,101 @@
     });
 
     // 照片网格
+    var isHeroView = state.current === "__hero__";
     var cur = state.projects.find(function (p) { return p.id === state.current; });
-    $("curTitle").textContent = cur ? (cur.title || cur.id) : "请选择项目";
-    $("curInfo").textContent = cur ? (cur.date || "") + (cur.location ? " · " + cur.location : "") : "左侧点击选择";
+    if (isHeroView) {
+      $("curTitle").textContent = "首页 Hero 轮播";
+      $("curInfo").textContent = "拖照片到左侧该卡片即加入;悬停 ✕ 移出(不影响项目里的照片)";
+    } else {
+      $("curTitle").textContent = cur ? (cur.title || cur.id) : "请选择项目";
+      $("curInfo").textContent = cur ? (cur.date || "") + (cur.location ? " · " + cur.location : "") : "左侧点击选择";
+    }
     var grid = $("photoGrid");
     grid.innerHTML = "";
-    $("emptyTip").style.display = cur ? "none" : "";
-    if (!cur) { renderSelbar(); return; }
-    var list2 = photosOf(cur.id);
+    $("emptyTip").style.display = cur || isHeroView ? "none" : "";
+    if (!cur && !isHeroView) { renderSelbar(); return; }
+    var list2 = photosOf(state.current);
     if (!list2.length) {
       $("emptyTip").style.display = "";
-      $("emptyTip").textContent = "该项目还没有照片 —— 去左侧其他项目选中照片拖过来,或先跑 add-photos 加照片";
+      $("emptyTip").textContent = isHeroView
+        ? "还没有 Hero 图 —— 在任意项目选中照片,拖到左侧「🏠 首页 Hero 轮播」卡片即可加入"
+        : "该项目还没有照片 —— 去左侧其他项目选中照片拖过来,或用「添加照片」上传";
     }
     list2.forEach(function (p) {
+      var isHeroItem = !!p.isHero;
+      var isCover = !isHeroItem && cur && p.filename === cur.coverImage;
       var div = document.createElement("div");
-      div.className = "ph" + (state.selected.has(p.id) ? " sel" : "");
-      div.draggable = true;
+      div.className = "ph" + (!isHeroItem && state.selected.has(p.id) ? " sel" : "");
+      div.draggable = !isHeroItem;
+      var acts =
+        (isHeroItem
+          ? ""
+          : '<button class="act star" title="设为精选(上首页 12 张精选墙)">★</button>' +
+            '<button class="act cover" title="设为「' + esc(cur ? cur.title : "") + '」项目封面">▣</button>') +
+        '<button class="act del" title="' +
+        (isHeroItem ? "移出首页 Hero 轮播" : "删除照片(含云端图片)") +
+        '">✕</button>';
       div.innerHTML =
         '<img loading="lazy" src="' + thumb(p.filename) + '" alt="" />' +
         '<span class="tag">' + esc(p.title || p.id) + "</span>" +
-        '<button class="del" title="删除照片(含云端图片)">✕</button>';
+        '<div style="position:absolute;top:4px;left:4px;display:flex;flex-direction:column;gap:4px">' +
+        (p.featured ? '<span class="badge">精选</span>' : "") +
+        (isCover ? '<span class="badge">封面</span>' : "") +
+        "</div>" +
+        '<div class="acts">' + acts + "</div>";
       div.querySelector(".del").addEventListener("click", function (e) {
         e.stopPropagation();
+        if (isHeroItem) {
+          if (!confirm("把「" + (p.title || p.filename) + "」移出首页 Hero 轮播?")) return;
+          fetch("/api/featured", {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ids: [p.id] }),
+          }).then(function () { toast("已移出首页 Hero"); load(); })
+            .catch(function (e2) { toast("操作失败:" + e2.message); });
+          return;
+        }
         if (!confirm("确定删除照片「" + (p.title || p.id) + "」?\n将同时从 Cloudinary 删除云端图片,不可恢复。")) return;
         delPhotos([p.id]);
       });
-      div.addEventListener("click", function () {
-        if (state.selected.has(p.id)) state.selected.delete(p.id);
-        else state.selected.add(p.id);
-        div.classList.toggle("sel");
-        renderSelbar();
-      });
-      div.addEventListener("dragstart", function (e) {
-        if (!state.selected.has(p.id)) { // 拖动未选中的图 = 只拖这一张
-          state.selected.clear();
-          state.selected.add(p.id);
-          render();
-        }
-        e.dataTransfer.setData("text/plain", JSON.stringify(Array.from(state.selected)));
-        div.classList.add("dragging");
-      });
-      div.addEventListener("dragend", function () { div.classList.remove("dragging"); });
+      if (!isHeroItem) {
+        div.querySelector(".star").addEventListener("click", function (e) {
+          e.stopPropagation();
+          fetch("/api/featured-flag", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ids: [p.id], value: !p.featured }),
+          }).then(function () { toast(p.featured ? "已取消精选" : "已设为精选(上首页精选墙)"); load(); })
+            .catch(function (e2) { toast("操作失败:" + e2.message); });
+        });
+        div.querySelector(".cover").addEventListener("click", function (e) {
+          e.stopPropagation();
+          fetch("/api/project-cover", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ projectId: state.current, filename: p.filename }),
+          }).then(function (r) { return r.json(); }).then(function (res) {
+            toast(res.error ? "设置失败:" + res.error : "已设为「" + (cur ? cur.title : "") + "」封面");
+            load();
+          }).catch(function (e2) { toast("操作失败:" + e2.message); });
+        });
+        div.addEventListener("click", function () {
+          if (state.selected.has(p.id)) state.selected.delete(p.id);
+          else state.selected.add(p.id);
+          div.classList.toggle("sel");
+          renderSelbar();
+        });
+        div.addEventListener("dragstart", function (e) {
+          if (!state.selected.has(p.id)) { // 拖动未选中的图 = 只拖这一张
+            state.selected.clear();
+            state.selected.add(p.id);
+            render();
+          }
+          e.dataTransfer.setData("text/plain", JSON.stringify(Array.from(state.selected)));
+          div.classList.add("dragging");
+        });
+        div.addEventListener("dragend", function () { div.classList.remove("dragging"); });
+      }
       grid.appendChild(div);
     });
     renderSelbar();
@@ -507,6 +602,37 @@
     if (!confirm("确定删除所选 " + n + " 张照片?\n将同时从 Cloudinary 删除云端图片,不可恢复。")) return;
     delPhotos(Array.from(state.selected));
   });
+
+  $("selFeatured").addEventListener("click", function () {
+    var ids = Array.from(state.selected);
+    if (!ids.length) return;
+    fetch("/api/featured-flag", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids: ids, value: true }),
+    }).then(function () { toast("已把 " + ids.length + " 张设为精选(上首页精选墙)"); state.selected.clear(); load(); })
+      .catch(function (e) { toast("操作失败:" + e.message); });
+  });
+
+  // ---------- 加入首页 Hero(拖拽/点选后点 Hero 卡片) ----------
+  function addHero(ids) {
+    var files = ids.map(function (id) {
+      var ph = state.photos.find(function (x) { return x.id === id; });
+      return { filename: ph ? ph.filename : id };
+    });
+    fetch("/api/featured", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ files: files }),
+    }).then(function (r) { return r.json(); }).then(function (res) {
+      if (res.error) { toast("加入失败:" + res.error); return; }
+      var added = (res.results || []).filter(function (x) { return x.ok && !x.exists; }).length;
+      var dup = (res.results || []).filter(function (x) { return x.exists; }).length;
+      toast("已加入首页 Hero " + added + " 张" + (dup ? "(重复跳过 " + dup + " 张)" : ""));
+      state.selected.clear();
+      load();
+    }).catch(function (e) { toast("加入失败:" + e.message); });
+  }
 
   // ---------- 推送上线:构建检查 → commit → push ----------
   var maskPush = $("maskPush");
