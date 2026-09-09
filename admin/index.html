@@ -68,6 +68,7 @@
   </div>
   <div style="display:flex;gap:10px">
     <button class="btn ghost" id="refresh">刷新</button>
+    <button class="btn" id="addPhotos">＋ 添加照片</button>
     <button class="btn primary" id="newProject">＋ 新建项目</button>
   </div>
 </header>
@@ -107,6 +108,27 @@
     <div class="actions">
       <button class="btn ghost" id="cancelModal">取消</button>
       <button class="btn primary" id="submitProject">创建</button>
+    </div>
+  </div>
+</div>
+
+<!-- 添加照片弹窗 -->
+<div class="mask" id="maskUp">
+  <div class="modal" style="width:520px">
+    <h3>添加照片</h3>
+    <div class="field">
+      <label>归属项目 *</label>
+      <select id="up-target" style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:4px;font-size:14px;outline:none;background:#fff"></select>
+    </div>
+    <div class="field">
+      <label>选择图片(可多选;选择后立即检测大小,超过 10MB 的将自动压缩上传)</label>
+      <input id="up-file" type="file" accept="image/jpeg,image/png,image/webp" multiple
+        style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:4px;font-size:13px" />
+    </div>
+    <div id="up-list" style="max-height:220px;overflow-y:auto;border:1px solid var(--line);border-radius:6px;padding:6px 10px;font-size:13px"></div>
+    <div class="actions">
+      <button class="btn ghost" id="up-cancel">取消</button>
+      <button class="btn primary" id="up-start" disabled>开始上传</button>
     </div>
   </div>
 </div>
@@ -282,6 +304,139 @@
       state.current = res.id;
       load();
     }).catch(function (e) { toast("创建失败:" + e.message); });
+  });
+
+  // ---------- 添加照片:选择文件即检测大小,>10MB 自动压缩上传(逻辑同 add-photos) ----------
+  var maskUp = $("maskUp");
+  var upFiles = []; // {file, name, size, over, status, el, compressed, err}
+
+  function fmtSize(b) {
+    if (b >= 1048576) return (b / 1048576).toFixed(1) + " MB";
+    if (b >= 1024) return (b / 1024).toFixed(0) + " KB";
+    return b + " B";
+  }
+
+  function fillTarget() {
+    var sel = $("up-target");
+    sel.innerHTML = "";
+    state.projects.forEach(function (p) {
+      var o = document.createElement("option");
+      o.value = p.id;
+      o.textContent = (p.title || p.id) + "(" + p.count + " 张)";
+      if (p.id === state.current) o.selected = true;
+      sel.appendChild(o);
+    });
+    var f = document.createElement("option");
+    f.value = "__featured__";
+    f.textContent = "🏠 首页 Hero 轮播图(不归属项目)";
+    sel.appendChild(f);
+  }
+
+  $("addPhotos").addEventListener("click", function () {
+    fillTarget();
+    upFiles = [];
+    $("up-file").value = "";
+    renderUpList();
+    $("up-start").disabled = true;
+    maskUp.classList.add("show");
+  });
+  $("up-cancel").addEventListener("click", function () { maskUp.classList.remove("show"); });
+  maskUp.addEventListener("click", function (e) { if (e.target === maskUp) maskUp.classList.remove("show"); });
+
+  $("up-file").addEventListener("change", function () {
+    upFiles = Array.from(this.files).map(function (f) {
+      var over = f.size > 10 * 1024 * 1024;
+      var dup = state.photos.some(function (p) { return p.id === f.name.replace(/\.[^.]+$/, ""); });
+      return { file: f, name: f.name, size: f.size, over: over, dup: dup, status: dup ? "skip" : "wait" };
+    });
+    renderUpList();
+    $("up-start").disabled = upFiles.length === 0;
+  });
+
+  function renderUpList() {
+    var box = $("up-list");
+    if (!upFiles.length) {
+      box.innerHTML = '<div style="color:var(--mist);padding:6px">尚未选择文件</div>';
+      return;
+    }
+    box.innerHTML = "";
+    upFiles.forEach(function (it) {
+      var div = document.createElement("div");
+      div.style.cssText = "display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--line)";
+      div.innerHTML =
+        '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(it.name) + "</span>" +
+        '<span style="color:var(--mist);font-size:12px">' + fmtSize(it.size) +
+        (it.over ? " · <b style='color:#b38a4f'>超10MB将压缩</b>" : "") + "</span>" +
+        '<span class="st" style="font-size:12px;min-width:70px;text-align:right"></span>';
+      it.el = div.querySelector(".st");
+      box.appendChild(div);
+    });
+    updateUpStatuses();
+  }
+
+  function updateUpStatuses() {
+    upFiles.forEach(function (it) {
+      if (!it.el) return;
+      if (it.status === "skip") it.el.innerHTML = '<span style="color:var(--mist)">已存在,跳过</span>';
+      else if (it.status === "wait") it.el.innerHTML = '<span style="color:var(--mist)">待上传</span>';
+      else if (it.status === "up") it.el.innerHTML = '<span style="color:var(--terra)">上传中…</span>';
+      else if (it.status === "ok") it.el.innerHTML = '<span style="color:#3a7d44">✓ ' + (it.compressed ? "已压缩" : "成功") + "</span>";
+      else if (it.status === "err") it.el.innerHTML = '<span style="color:#b0392e" title="' + esc(it.err || "") + '">✗ 失败</span>';
+    });
+  }
+
+  function readBase64(file) {
+    return new Promise(function (resolve, reject) {
+      var r = new FileReader();
+      r.onload = function () { resolve(String(r.result).split(",")[1] || ""); };
+      r.onerror = function () { reject(new Error("读取失败")); };
+      r.readAsDataURL(file);
+    });
+  }
+
+  $("up-start").addEventListener("click", async function () {
+    var todo = upFiles.filter(function (it) { return it.status !== "skip"; });
+    if (!todo.length) { toast("没有需要上传的文件"); return; }
+    var target = $("up-target").value;
+    var featured = target === "__featured__";
+    var project = featured ? "" : target;
+    $("up-start").disabled = true;
+    var okN = 0, compN = 0, failN = 0, skipN = upFiles.length - todo.length;
+    for (var i = 0; i < todo.length; i++) {
+      var it = todo[i];
+      it.status = "up";
+      updateUpStatuses();
+      try {
+        var b64 = await readBase64(it.file);
+        var r = await fetch("/api/add-photo", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ files: [{ name: it.name, data: b64 }], project: project, featured: featured }),
+        });
+        var res = await r.json();
+        var one = res.error ? { ok: false, error: res.error } : (res.results || [])[0];
+        if (one.ok) {
+          it.status = "ok";
+          it.compressed = one.compressed;
+          if (one.compressed) compN++; else okN++;
+        } else if (one.skipped) {
+          it.status = "skip";
+          skipN++;
+        } else {
+          it.status = "err";
+          it.err = one.error || "未知错误";
+          failN++;
+        }
+      } catch (e) {
+        it.status = "err";
+        it.err = e.message;
+        failN++;
+      }
+      updateUpStatuses();
+    }
+    $("up-start").disabled = false;
+    toast("上传完成:成功 " + (okN + compN) + " 张(压缩 " + compN + " 张)/ 跳过 " + skipN + " / 失败 " + failN + " —— 记得 git push");
+    load();
   });
 
   $("refresh").addEventListener("click", load);

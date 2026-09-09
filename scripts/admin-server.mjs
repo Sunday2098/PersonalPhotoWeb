@@ -6,19 +6,28 @@
 // 功能:
 //   - 图形化把照片从一个项目移动到另一个项目(拖拽或点选)
 //   - 图形化新建项目
+//   - 图形化添加照片(上传前检测大小,>10MB 自动压缩;逻辑与 add-photos 一致)
 //   - 直接改写 src/content/photos/*.md 与 src/content/projects/*.md,
 //     改完照常用 git push 部署上线
 //
 // 安全:只监听 127.0.0.1,局域网/外网不可访问;无任何认证(本机即信任边界)。
-import { readdir, readFile, writeFile } from "node:fs/promises";
+import { readdir, readFile, writeFile, access } from "node:fs/promises";
 import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { v2 as cloudinary } from "cloudinary";
+import exifr from "exifr";
+import sharp from "sharp";
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const photosDir = path.join(root, "src", "content", "photos");
+const featuredDir = path.join(root, "src", "content", "featured");
 const projectsDir = path.join(root, "src", "content", "projects");
 const adminDir = path.join(root, "admin");
+
+const IMG_EXT = [".jpg", ".jpeg", ".png", ".webp"];
+// Cloudinary API 上传上限 10MB;超限自动压缩到 1920px(JPEG q82),同 add-photos
+const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 
 const PORT = Number(process.argv[2] ?? 8787);
 const HOST = "127.0.0.1";
@@ -143,6 +152,147 @@ async function createProject({ id, title, description = "", date = "", location 
   return { id };
 }
 
+// ---------- 添加照片(逻辑与 scripts/add-photos.mjs 一致) ----------
+
+let cloudReady = false;
+async function ensureCloudinary() {
+  if (cloudReady) return;
+  const env = await loadEnv();
+  const { CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET } = env;
+  if (!CLOUDINARY_CLOUD_NAME || !CLOUDINARY_API_KEY || !CLOUDINARY_API_SECRET) {
+    throw new Error(".env 缺少 Cloudinary 配置,无法上传照片");
+  }
+  cloudinary.config({
+    cloud_name: CLOUDINARY_CLOUD_NAME,
+    api_key: CLOUDINARY_API_KEY,
+    api_secret: CLOUDINARY_API_SECRET,
+  });
+  cloudReady = true;
+}
+
+// Cloudinary 错误信息优先取 .message;部分网络错误只有 .error 或裸对象,逐级兜底
+function errMessage(e) {
+  return e?.message || e?.error?.message || (typeof e === "string" ? e : JSON.stringify(e));
+}
+
+function uploadBuffer(buffer, options) {
+  return new Promise((resolve, reject) => {
+    cloudinary.uploader
+      .upload_stream(options, (err, result) => (err ? reject(err) : resolve(result)))
+      .end(buffer);
+  });
+}
+
+async function fileExists(p) {
+  try {
+    await access(p);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// 单张照片入库:大小检测(>10MB 自动压缩)→ EXIF → 上传 → 生成 .md
+async function addPhoto({ name, data, project = "", featured = false }) {
+  const ext = path.extname(name).toLowerCase();
+  if (!IMG_EXT.includes(ext)) {
+    return { name, ok: false, error: `不支持的图片格式 ${ext}` };
+  }
+  const base = path.basename(name, ext);
+  const outDir = featured ? featuredDir : photosDir;
+  if (await fileExists(path.join(outDir, `${base}.md`))) {
+    return { name, ok: false, skipped: true, error: "已有数据文件,自动跳过" };
+  }
+
+  let buf;
+  try {
+    buf = Buffer.from(data, "base64");
+  } catch {
+    return { name, ok: false, error: "文件内容解码失败" };
+  }
+
+  // 上传前大小检测:>10MB 自动压缩到 1920px(JPEG q82),同 add-photos
+  let compressed = false;
+  const origBytes = buf.length;
+  if (buf.length > MAX_UPLOAD_BYTES) {
+    try {
+      buf = await sharp(buf)
+        .rotate() // 应用 EXIF 方向
+        .resize(1920, null, { withoutEnlargement: true })
+        .jpeg({ quality: 82 })
+        .toBuffer();
+      compressed = true;
+    } catch {
+      return { name, ok: false, error: "图片压缩失败(文件可能不是有效图片)" };
+    }
+  }
+
+  // 读 EXIF(失败降级为今天)
+  let date = new Date().toISOString().slice(0, 10),
+    camera = "",
+    focal = "",
+    iso = "";
+  try {
+    const t = await exifr.parse(buf, { pick: ["Model", "DateTimeOriginal", "FocalLength", "ISO"] });
+    if (t?.DateTimeOriginal instanceof Date) {
+      const d = t.DateTimeOriginal;
+      date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    }
+    if (t?.Model) camera = String(t.Model).trim();
+    if (typeof t?.FocalLength === "number") focal = `${Math.round(t.FocalLength)}mm`;
+    if (typeof t?.ISO === "number") iso = t.ISO;
+  } catch {}
+
+  // 上传(overwrite=false 防覆盖;失败自动重试一次;already exists 视为成功)
+  await ensureCloudinary();
+  let upload;
+  const options = { public_id: `photos/${base}`, overwrite: false };
+  try {
+    upload = await uploadBuffer(buf, options);
+  } catch (err) {
+    if (errMessage(err).includes("already exists")) {
+      upload = null; // 云端已有同名资源,视为成功
+    } else {
+      try {
+        await new Promise((r) => setTimeout(r, 2000));
+        upload = await uploadBuffer(buf, options);
+      } catch (e2) {
+        if (!errMessage(e2).includes("already exists")) {
+          return { name, ok: false, error: errMessage(e2) };
+        }
+        upload = null;
+      }
+    }
+  }
+
+  // 生成 .md(与 add-photos 同构:title 空、date 带引号、iso 必须数字)
+  const exifLines = [];
+  if (camera) exifLines.push(`  camera: ${yamlStr(camera)}`);
+  if (focal) exifLines.push(`  focalLength: ${yamlStr(focal)}`);
+  if (iso) exifLines.push(`  iso: ${iso}`);
+  const frontmatter = [
+    "---",
+    `id: ${yamlStr(base)}`,
+    `title: ""`, // 标题默认留空,命名由用户在 .md 里手动编辑
+    `filename: ${yamlStr(name)}`,
+    `date: "${date}"`,
+    ...(featured ? [] : [`project: ${yamlStr(project)}`]),
+    ...(exifLines.length && !featured ? ["exif:", ...exifLines] : []),
+    "---",
+    "",
+  ].join("\n");
+  await writeFile(path.join(outDir, `${base}.md`), frontmatter, "utf8");
+
+  return {
+    name,
+    ok: true,
+    compressed,
+    origBytes,
+    bytes: buf.length,
+    url: upload?.secure_url ?? `https://res.cloudinary.com/${cloudinary.config().cloud_name}/image/upload/photos/${base}`,
+  };
+}
+
 // ---------- HTTP 服务 ----------
 
 function json(res, code, data) {
@@ -150,9 +300,18 @@ function json(res, code, data) {
   res.end(JSON.stringify(data));
 }
 
+const MAX_BODY_BYTES = 150 * 1024 * 1024; // 批量上传整体上限(base64 后约 110MB 原图)
+
 async function readBody(req) {
   const chunks = [];
-  for await (const c of req) chunks.push(c);
+  let total = 0;
+  for await (const c of req) {
+    total += c.length;
+    if (total > MAX_BODY_BYTES) {
+      throw new Error("上传内容过大(超过 150MB),请分批添加");
+    }
+    chunks.push(c);
+  }
   try {
     return JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}");
   } catch {
@@ -205,6 +364,25 @@ const server = http.createServer(async (req, res) => {
       }
       const created = await createProject({ id, title, ...body });
       return json(res, 200, created);
+    }
+    if (p === "/api/add-photo" && req.method === "POST") {
+      const body = await readBody(req);
+      const { files = [], project = "", featured = false } = body;
+      if (!Array.isArray(files) || files.length === 0) {
+        return json(res, 400, { error: "参数缺失:files[]" });
+      }
+      if (!featured && !project) {
+        return json(res, 400, { error: "请指定归属项目(featured 或 project 二选一)" });
+      }
+      const results = [];
+      for (const f of files) {
+        if (!f?.name || !f?.data) {
+          results.push({ name: f?.name ?? "?", ok: false, error: "缺少文件名或内容" });
+          continue;
+        }
+        results.push(await addPhoto({ name: f.name, data: f.data, project, featured }));
+      }
+      return json(res, 200, { results });
     }
     // 静态页面(仅 / 一个页面)
     if (p === "/" || p === "/index.html") {
