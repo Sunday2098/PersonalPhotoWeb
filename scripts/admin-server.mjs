@@ -15,6 +15,7 @@
 // 安全:只监听 127.0.0.1,局域网/外网不可访问;无任何认证(本机即信任边界)。
 import { readdir, readFile, writeFile, access, unlink } from "node:fs/promises";
 import http from "node:http";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { execSync } from "node:child_process";
@@ -339,20 +340,29 @@ async function deleteProject(id) {
 }
 
 // 推送上线:构建检查 → git add/commit → git push;无改动时跳过提交
+// 提交说明经 -F 读 UTF-8 临时文件,避免 Windows cmd.exe 编码导致中文乱码
 async function pushToGithub(message) {
   const log = [];
+  const stripAnsi = (s) => String(s).replace(/\x1b\[[0-9;]*m/g, "");
   const run = (cmd) =>
     execSync(cmd, { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
   try {
     log.push("① 构建检查(npm run build)…");
     const b = run("npm run build");
-    log.push(...b.trim().split("\n").slice(-5).map((l) => "   " + l));
+    log.push(...stripAnsi(b).trim().split("\n").slice(-5).map((l) => "   " + l));
     log.push("② 提交改动(git add + commit)…");
     try {
-      const c = run(`git add -A && git commit -m "${String(message).replace(/"/g, '\\"')}"`);
-      log.push(...c.trim().split("\n").slice(-3).map((l) => "   " + l));
+      // 放在仓库外的系统临时目录,避免被 git add -A 一起提交
+      const msgFile = path.join(os.tmpdir(), "admin-commit-msg.txt");
+      await writeFile(msgFile, String(message), "utf8");
+      try {
+        const c = run(`git add -A && git commit -F "${msgFile}"`);
+        log.push(...stripAnsi(c).trim().split("\n").slice(-3).map((l) => "   " + l));
+      } finally {
+        await unlink(msgFile).catch(() => {});
+      }
     } catch (e) {
-      const out = `${e.stdout || ""}${e.stderr || ""}`;
+      const out = stripAnsi(`${e.stdout || ""}${e.stderr || ""}`);
       if (out.includes("nothing to commit")) {
         log.push("   没有文件改动,跳过提交");
       } else {
@@ -362,11 +372,11 @@ async function pushToGithub(message) {
     }
     log.push("③ 推送到 GitHub(git push)…");
     const p = run("git push");
-    log.push(...p.trim().split("\n").slice(-3).map((l) => "   " + l));
+    log.push(...stripAnsi(p).trim().split("\n").slice(-3).map((l) => "   " + l));
     log.push("✓ 已推送,Cloudflare Pages 正在自动部署(约 1-2 分钟)");
     return { ok: true, log };
   } catch (e) {
-    log.push(...`${e.stdout || ""}${e.stderr || ""}`.trim().split("\n").slice(-10).map((l) => "   " + l));
+    log.push(...stripAnsi(`${e.stdout || ""}${e.stderr || ""}`).trim().split("\n").slice(-10).map((l) => "   " + l));
     return { ok: false, log };
   }
 }
