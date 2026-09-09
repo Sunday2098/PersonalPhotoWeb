@@ -2,7 +2,7 @@
 id: sheng-ling-wan-xiang
 title: 生灵万象
 description: 动物
-coverImage: dsc-7079.jpg
+coverImage: DSC_7085-2.jpg
 date:
 location:
 ---
