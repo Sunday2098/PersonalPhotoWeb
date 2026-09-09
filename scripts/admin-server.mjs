@@ -590,7 +590,8 @@ const server = http.createServer(async (req, res) => {
       const body = await readBody(req);
       const title = String(body.title ?? "").trim();
       if (!title) return json(res, 400, { error: "项目标题不能为空" });
-      const id = String(body.id ?? "").trim() || (await autoId(title));
+      // 统一小写:URL 大小写敏感,大写 id 会导致线上(Cloudflare)404
+      const id = (String(body.id ?? "").trim() || (await autoId(title))).toLowerCase();
       if (!/^[a-zA-Z0-9-]+$/.test(id)) {
         return json(res, 400, { error: "项目 id 只能包含字母、数字和连字符" });
       }
