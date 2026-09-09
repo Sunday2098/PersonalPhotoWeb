@@ -66,6 +66,8 @@ function parseFrontmatter(md) {
 
 function yamlStr(v) {
   const s = String(v ?? "");
+  // 空串必须加引号,否则写成裸 `key: ` 会被 YAML 解析成 null(项目简介留空即此情况)
+  if (s === "") return '""';
   return /[:#]\s|^\s|\s$|^[\d.:-]+$/.test(s) ? `"${s}"` : s;
 }
 
@@ -460,42 +462,65 @@ async function deleteProject(id) {
 
 // 推送上线:构建检查 → git add/commit → git push;无改动时跳过提交
 // 提交说明经 -F 读 UTF-8 临时文件,避免 Windows cmd.exe 编码导致中文乱码
+// 命令输出全部走文件重定向(不用 stdio 管道)—— Windows 上管道 + 子进程异常退出
+// 会触发 libuv 崩溃("Assertion failed: UV_HANDLE_CLOSING"),文件重定向可完全绕开
 async function pushToGithub(message) {
   const log = [];
   const stripAnsi = (s) => String(s).replace(/\x1b\[[0-9;]*m/g, "");
-  const run = (cmd) =>
-    execSync(cmd, { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  const cmdLog = path.join(os.tmpdir(), "admin-push.log");
+  // 执行命令,输出写临时日志文件,返回 { code, lines }
+  const runCmd = async (cmd) => {
+    let code = 0;
+    try {
+      execSync(`${cmd} > "${cmdLog}" 2>&1`, {
+        cwd: root,
+        stdio: ["ignore", "ignore", "ignore"],
+      });
+    } catch (e) {
+      code = typeof e.status === "number" ? e.status : 1;
+    }
+    const out = stripAnsi(await readFile(cmdLog, "utf8").catch(() => ""));
+    return { code, lines: out.trim().split("\n").filter(Boolean) };
+  };
   try {
     log.push("① 构建检查(npm run build)…");
-    const b = run("npm run build");
-    log.push(...stripAnsi(b).trim().split("\n").slice(-5).map((l) => "   " + l));
+    const b = await runCmd("npm run build");
+    log.push(...b.lines.slice(-5).map((l) => "   " + l));
+    if (b.code !== 0) {
+      log.push("✗ 构建失败,已停止推送 —— 按上面报错修正后重试");
+      return { ok: false, log };
+    }
     log.push("② 提交改动(git add + commit)…");
+    const msgFile = path.join(os.tmpdir(), "admin-commit-msg.txt");
+    await writeFile(msgFile, String(message), "utf8");
+    let c;
     try {
-      // 放在仓库外的系统临时目录,避免被 git add -A 一起提交
-      const msgFile = path.join(os.tmpdir(), "admin-commit-msg.txt");
-      await writeFile(msgFile, String(message), "utf8");
-      try {
-        const c = run(`git add -A && git commit -F "${msgFile}"`);
-        log.push(...stripAnsi(c).trim().split("\n").slice(-3).map((l) => "   " + l));
-      } finally {
-        await unlink(msgFile).catch(() => {});
-      }
-    } catch (e) {
-      const out = stripAnsi(`${e.stdout || ""}${e.stderr || ""}`);
-      if (out.includes("nothing to commit")) {
+      c = await runCmd(`git add -A && git commit -F "${msgFile}"`);
+    } finally {
+      await unlink(msgFile).catch(() => {});
+    }
+    if (c.code !== 0) {
+      if (c.lines.join("\n").includes("nothing to commit")) {
         log.push("   没有文件改动,跳过提交");
       } else {
-        log.push(...out.trim().split("\n").slice(-8).map((l) => "   " + l));
+        log.push(...c.lines.slice(-8).map((l) => "   " + l));
+        log.push("✗ 提交失败,已停止推送");
         return { ok: false, log };
       }
+    } else {
+      log.push(...c.lines.slice(-3).map((l) => "   " + l));
     }
     log.push("③ 推送到 GitHub(git push)…");
-    const p = run("git push");
-    log.push(...stripAnsi(p).trim().split("\n").slice(-3).map((l) => "   " + l));
+    const p = await runCmd("git push");
+    log.push(...p.lines.slice(-3).map((l) => "   " + l));
+    if (p.code !== 0) {
+      log.push("✗ 推送失败 —— 检查网络或 GitHub 凭据");
+      return { ok: false, log };
+    }
     log.push("✓ 已推送,Cloudflare Pages 正在自动部署(约 1-2 分钟)");
     return { ok: true, log };
   } catch (e) {
-    log.push(...stripAnsi(`${e.stdout || ""}${e.stderr || ""}`).trim().split("\n").slice(-10).map((l) => "   " + l));
+    log.push("执行出错:" + (e?.message ?? e));
     return { ok: false, log };
   }
 }
