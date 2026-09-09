@@ -43,6 +43,14 @@
   .ph .tag { position: absolute; left: 0; right: 0; bottom: 0; padding: 3px 6px; font-size: 11px; color: #fff; background: linear-gradient(transparent, rgba(0,0,0,.7)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .ph.sel { border-color: var(--terra); box-shadow: 0 0 0 2px var(--sel); }
   .ph.dragging { opacity: .4; }
+  .del { position: absolute; top: 4px; right: 4px; width: 22px; height: 22px; border: none; border-radius: 4px; background: rgba(0,0,0,.55); color: #fff; font-size: 12px; line-height: 1; cursor: pointer; opacity: 0; transition: opacity .15s; }
+  .ph:hover .del, .proj:hover .del { opacity: 1; }
+  .del:hover { background: #b0392e; }
+  .proj { position: relative; }
+  .proj .del { width: 20px; height: 20px; font-size: 11px; }
+  .danger { background: #b0392e !important; border-color: #b0392e !important; color: #fff !important; }
+  .danger:hover { background: #8f2d24 !important; }
+  #push-log { background: #f7f7f5; border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; font: 12px/1.6 Consolas, monospace; white-space: pre-wrap; max-height: 260px; overflow-y: auto; margin-bottom: 12px; min-height: 60px; }
   .empty { padding: 60px 0; text-align: center; color: var(--mist); font-size: 13px; }
   /* 新建项目弹窗 */
   .mask { display: none; position: fixed; inset: 0; z-index: 50; background: rgba(0,0,0,.45); align-items: center; justify-content: center; }
@@ -70,6 +78,7 @@
     <button class="btn ghost" id="refresh">刷新</button>
     <button class="btn" id="addPhotos">＋ 添加照片</button>
     <button class="btn primary" id="newProject">＋ 新建项目</button>
+    <button class="btn" id="gitPush" style="background:var(--ink);color:#fff;border-color:var(--ink)">🚀 推送上线</button>
   </div>
 </header>
 
@@ -89,6 +98,7 @@
       <span style="color:var(--mist);font-size:12px">拖拽任意一张到左侧项目卡片,或直接点击左侧目标项目</span>
       <button class="btn ghost" id="selAll" style="margin-left:auto">全选</button>
       <button class="btn ghost" id="selClear">取消选择</button>
+      <button class="btn danger" id="selDelete">删除所选</button>
     </div>
     <div class="grid" id="photoGrid"></div>
     <div class="empty" id="emptyTip">选中左侧项目查看照片;也可以先把照片拖进空项目</div>
@@ -129,6 +139,22 @@
     <div class="actions">
       <button class="btn ghost" id="up-cancel">取消</button>
       <button class="btn primary" id="up-start" disabled>开始上传</button>
+    </div>
+  </div>
+</div>
+
+<!-- 推送上线弹窗 -->
+<div class="mask" id="maskPush">
+  <div class="modal" style="width:520px">
+    <h3>🚀 推送上线</h3>
+    <div class="field">
+      <label>提交说明(commit message)</label>
+      <input id="push-msg" value="后台管理更新" style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:4px;font-size:14px" />
+    </div>
+    <div id="push-log">尚未执行</div>
+    <div class="actions">
+      <button class="btn ghost" id="push-close">关闭</button>
+      <button class="btn primary" id="push-run">开始推送</button>
     </div>
   </div>
 </div>
@@ -185,7 +211,22 @@
       div.className = "proj" + (p.id === state.current ? " active" : "");
       div.innerHTML =
         '<span class="name">' + esc(p.title || p.id) + "</span>" +
-        '<span class="count">' + p.count + " 张</span>";
+        '<span class="count">' + p.count + " 张</span>" +
+        '<button class="del" title="删除项目">✕</button>';
+      div.querySelector(".del").addEventListener("click", function (e) {
+        e.stopPropagation();
+        if (!confirm("确定删除项目「" + (p.title || p.id) + "」?\n(项目里还有照片时会被拦截)删除后不可恢复。")) return;
+        fetch("/api/project", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: p.id }),
+        }).then(function (r) { return r.json(); }).then(function (res) {
+          if (res.error) { toast("删除失败:" + res.error); return; }
+          toast("项目已删除:" + p.id);
+          if (state.current === p.id) state.current = null;
+          load();
+        }).catch(function (e) { toast("删除失败:" + e.message); });
+      });
       div.title = (p.description ? p.description + "\n" : "") +
         (p.date ? p.date + " " : "") + (p.location || "");
       div.addEventListener("click", function () {
@@ -230,7 +271,13 @@
       div.draggable = true;
       div.innerHTML =
         '<img loading="lazy" src="' + thumb(p.filename) + '" alt="" />' +
-        '<span class="tag">' + esc(p.title || p.id) + "</span>";
+        '<span class="tag">' + esc(p.title || p.id) + "</span>" +
+        '<button class="del" title="删除照片(含云端图片)">✕</button>';
+      div.querySelector(".del").addEventListener("click", function (e) {
+        e.stopPropagation();
+        if (!confirm("确定删除照片「" + (p.title || p.id) + "」?\n将同时从 Cloudinary 删除云端图片,不可恢复。")) return;
+        delPhotos([p.id]);
+      });
       div.addEventListener("click", function () {
         if (state.selected.has(p.id)) state.selected.delete(p.id);
         else state.selected.add(p.id);
@@ -437,6 +484,52 @@
     $("up-start").disabled = false;
     toast("上传完成:成功 " + (okN + compN) + " 张(压缩 " + compN + " 张)/ 跳过 " + skipN + " / 失败 " + failN + " —— 记得 git push");
     load();
+  });
+
+  // ---------- 删除照片(所选批量或单张,连云端图片一起删) ----------
+  function delPhotos(ids) {
+    fetch("/api/photo", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids: ids, destroy: true }),
+    }).then(function (r) { return r.json(); }).then(function (res) {
+      if (res.error) { toast("删除失败:" + res.error); return; }
+      var ok = (res.results || []).filter(function (x) { return x.removed; }).length;
+      toast("已删除 " + ok + "/" + ids.length + " 张(云端图片已同步清理)");
+      state.selected.clear();
+      load();
+    }).catch(function (e) { toast("删除失败:" + e.message); });
+  }
+
+  $("selDelete").addEventListener("click", function () {
+    var n = state.selected.size;
+    if (!n) return;
+    if (!confirm("确定删除所选 " + n + " 张照片?\n将同时从 Cloudinary 删除云端图片,不可恢复。")) return;
+    delPhotos(Array.from(state.selected));
+  });
+
+  // ---------- 推送上线:构建检查 → commit → push ----------
+  var maskPush = $("maskPush");
+  $("gitPush").addEventListener("click", function () {
+    $("push-log").textContent = "尚未执行";
+    maskPush.classList.add("show");
+  });
+  $("push-close").addEventListener("click", function () { maskPush.classList.remove("show"); });
+  maskPush.addEventListener("click", function (e) { if (e.target === maskPush) maskPush.classList.remove("show"); });
+  $("push-run").addEventListener("click", function () {
+    var btn = this;
+    btn.disabled = true;
+    $("push-log").textContent = "执行中(构建约 10 秒,请稍候)…";
+    fetch("/api/push", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: $("push-msg").value.trim() }),
+    }).then(function (r) { return r.json(); }).then(function (res) {
+      $("push-log").textContent = (res.log || []).join("\n");
+      toast(res.ok ? "已推送上线,Cloudflare 正在自动部署" : "推送失败,查看弹窗日志");
+    }).catch(function (e) {
+      $("push-log").textContent = "请求失败:" + e.message;
+    }).finally(function () { btn.disabled = false; });
   });
 
   $("refresh").addEventListener("click", load);

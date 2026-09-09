@@ -7,14 +7,17 @@
 //   - 图形化把照片从一个项目移动到另一个项目(拖拽或点选)
 //   - 图形化新建项目
 //   - 图形化添加照片(上传前检测大小,>10MB 自动压缩;逻辑与 add-photos 一致)
+//   - 图形化删除照片(连云端资源一起删)/ 删除项目(还有照片时拦截)
+//   - "推送上线"按钮:构建检查 → git commit → git push 一条龙
 //   - 直接改写 src/content/photos/*.md 与 src/content/projects/*.md,
 //     改完照常用 git push 部署上线
 //
 // 安全:只监听 127.0.0.1,局域网/外网不可访问;无任何认证(本机即信任边界)。
-import { readdir, readFile, writeFile, access } from "node:fs/promises";
+import { readdir, readFile, writeFile, access, unlink } from "node:fs/promises";
 import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { execSync } from "node:child_process";
 import { v2 as cloudinary } from "cloudinary";
 import exifr from "exifr";
 import sharp from "sharp";
@@ -293,6 +296,81 @@ async function addPhoto({ name, data, project = "", featured = false }) {
   };
 }
 
+// ---------- 删除照片 / 删除项目 ----------
+
+// 删除照片:删 .md(可选连同 Cloudinary 资源一起删,public_id 从 filename 解析)
+async function deletePhotos(ids, destroy) {
+  const results = [];
+  for (const id of ids) {
+    const file = path.join(photosDir, `${id}.md`);
+    // 先读 filename 用于删除云端资源(个别数据文件的 id 与文件名不完全一致)
+    let publicId = id;
+    try {
+      const fm = parseFrontmatter(await readFile(file, "utf8"));
+      if (fm.filename) publicId = String(fm.filename).replace(/\.[^.]+$/, "");
+    } catch {}
+    let removed = false;
+    try {
+      await unlink(file);
+      removed = true;
+    } catch {}
+    let cloud = "skipped";
+    if (destroy && removed) {
+      await ensureCloudinary();
+      const r = await cloudinary.uploader
+        .destroy(`photos/${publicId}`)
+        .catch((e) => ({ result: errMessage(e) }));
+      cloud = r.result; // "ok" / "not found" 均视为清理完成
+    }
+    results.push({ id, removed, cloud });
+  }
+  return results;
+}
+
+async function deleteProject(id) {
+  const proj = (await listProjects()).find((pr) => pr.id === id);
+  if (!proj) throw new Error("项目不存在");
+  const n = (await listPhotos()).filter((ph) => ph.project === id).length;
+  if (n > 0) {
+    throw new Error(`「${proj.title ?? id}」还有 ${n} 张照片,请先把照片移到其他项目或删除,再删项目`);
+  }
+  await unlink(path.join(projectsDir, proj.file));
+  return { id };
+}
+
+// 推送上线:构建检查 → git add/commit → git push;无改动时跳过提交
+async function pushToGithub(message) {
+  const log = [];
+  const run = (cmd) =>
+    execSync(cmd, { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  try {
+    log.push("① 构建检查(npm run build)…");
+    const b = run("npm run build");
+    log.push(...b.trim().split("\n").slice(-5).map((l) => "   " + l));
+    log.push("② 提交改动(git add + commit)…");
+    try {
+      const c = run(`git add -A && git commit -m "${String(message).replace(/"/g, '\\"')}"`);
+      log.push(...c.trim().split("\n").slice(-3).map((l) => "   " + l));
+    } catch (e) {
+      const out = `${e.stdout || ""}${e.stderr || ""}`;
+      if (out.includes("nothing to commit")) {
+        log.push("   没有文件改动,跳过提交");
+      } else {
+        log.push(...out.trim().split("\n").slice(-8).map((l) => "   " + l));
+        return { ok: false, log };
+      }
+    }
+    log.push("③ 推送到 GitHub(git push)…");
+    const p = run("git push");
+    log.push(...p.trim().split("\n").slice(-3).map((l) => "   " + l));
+    log.push("✓ 已推送,Cloudflare Pages 正在自动部署(约 1-2 分钟)");
+    return { ok: true, log };
+  } catch (e) {
+    log.push(...`${e.stdout || ""}${e.stderr || ""}`.trim().split("\n").slice(-10).map((l) => "   " + l));
+    return { ok: false, log };
+  }
+}
+
 // ---------- HTTP 服务 ----------
 
 function json(res, code, data) {
@@ -383,6 +461,25 @@ const server = http.createServer(async (req, res) => {
         results.push(await addPhoto({ name: f.name, data: f.data, project, featured }));
       }
       return json(res, 200, { results });
+    }
+    if (p === "/api/photo" && req.method === "DELETE") {
+      const body = await readBody(req);
+      const { ids = [], destroy = true } = body;
+      if (!Array.isArray(ids) || ids.length === 0) {
+        return json(res, 400, { error: "参数缺失:ids[]" });
+      }
+      return json(res, 200, { results: await deletePhotos(ids, destroy) });
+    }
+    if (p === "/api/project" && req.method === "DELETE") {
+      const body = await readBody(req);
+      const id = String(body.id ?? "");
+      if (!id) return json(res, 400, { error: "缺少项目 id" });
+      return json(res, 200, await deleteProject(id));
+    }
+    if (p === "/api/push" && req.method === "POST") {
+      const body = await readBody(req);
+      const message = String(body.message ?? "").trim() || "后台管理更新";
+      return json(res, 200, await pushToGithub(message));
     }
     // 静态页面(仅 / 一个页面)
     if (p === "/" || p === "/index.html") {
