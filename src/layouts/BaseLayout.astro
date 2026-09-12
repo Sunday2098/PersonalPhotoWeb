@@ -7,7 +7,7 @@ interface Props {
 }
 
 const {
-  title = "夏至未至 · 摄影手记",
+  title = "夏至未至",
   description = "用照片记录走过的路、看过的风景和日常的瞬间。",
 } = Astro.props;
 
@@ -43,6 +43,15 @@ const socials = [
         if (t === "dark") document.documentElement.classList.add("dark");
       })();
     </script>
+    <!-- 兜底:.photo-tile img 初始 opacity:0,靠页尾脚本加 .is-loaded 显形。
+         禁用 JS 时不加这一条,整站照片会全部不可见。 -->
+    <noscript>
+      <style>
+        .photo-tile img {
+          opacity: 1;
+        }
+      </style>
+    </noscript>
   </head>
   <body class="flex min-h-screen flex-col">
     <header class="mx-auto w-full max-w-5xl px-5">
@@ -99,7 +108,7 @@ const socials = [
           }
           <a href="mailto:hello@yourdomain.com" class="transition-colors hover:text-ink dark:hover:text-neutral-100">邮箱</a>
         </div>
-        <p class="text-xs text-mist/70">© 2026 夏至未至 · 用照片记录走过的路</p>
+        <p class="text-xs text-mist/70">© 2026 夏至未至</p>
       </div>
     </footer>
 
@@ -110,6 +119,25 @@ const socials = [
         btn.addEventListener("click", function () {
           var dark = document.documentElement.classList.toggle("dark");
           localStorage.setItem("theme", dark ? "dark" : "light");
+        });
+      })();
+    </script>
+
+    <!-- 图片淡入:瓦片解码完成后由 opacity 0 过渡到 1(占位底色见 global.css .photo-tile) -->
+    <script is:inline>
+      (function () {
+        function mark(img) {
+          img.classList.add("is-loaded");
+        }
+        document.querySelectorAll(".photo-tile img").forEach(function (img) {
+          // 已在缓存中的图不会再触发 load,直接判定
+          if (img.complete && img.naturalWidth > 0) {
+            mark(img);
+            return;
+          }
+          img.addEventListener("load", function () { mark(img); }, { once: true });
+          // 加载失败也显示,避免瓦片永远停在占位底色上
+          img.addEventListener("error", function () { mark(img); }, { once: true });
         });
       })();
     </script>

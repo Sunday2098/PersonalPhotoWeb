@@ -1,15 +1,16 @@
 ---
-// 首页(PRD V1.2):顶部全宽 Hero 轮播 + 下方 12 张精选墙。
+// 首页(PRD V1.2):顶部首屏 + 下方 12 张精选墙。
 //
-// Hero:照片来自独立集合 src/content/featured/(单独路径便于维护),
-//       铺满屏幕,点击左/右半区淡入淡出切换,首屏图高优先级加载。
-// 精选墙:photos 里带 featured: true 的最新 12 张,保留原始比例(瀑布流,不裁切),
-//       悬停显示跟随鼠标的光晕;点击打开灯箱,在这 12 张之间左右切换。
+// 首屏:照片来自独立集合 src/content/featured/(单独路径便于维护)。
+//       object-contain 不裁切作品,照片落在与主题同色的"卡纸"上(浅色浅灰 / 暗色近黑);
+//       点击左/右半区淡入淡出切换,首屏图高优先级加载。
+// 精选墙:photos 里带 featured: true 的最新 12 张,保留原始比例(不裁切),按行阅读。
+//       瓦片先铺该图主色再淡入,点击打开灯箱,在这 12 张之间左右切换。
 // (V1.1 的"3 天自动轮换"已按 V1.2 移除)
 import { getCollection } from "astro:content";
 import BaseLayout from "../layouts/BaseLayout.astro";
 import Lightbox from "../components/Lightbox.astro";
-import { cloudinaryUrl } from "../lib/images";
+import { cloudinaryUrl, cloudinarySrcset } from "../lib/images";
 
 const heroes = (await getCollection("featured")).sort((a, b) =>
   (b.data.date ?? "").localeCompare(a.data.date ?? ""),
@@ -20,30 +21,41 @@ const picks = (await getCollection("photos"))
   .sort((a, b) => (b.data.date ?? "").localeCompare(a.data.date ?? ""))
   .slice(0, 12);
 
+// 灯箱按钮的无障碍名称:照片标题普遍为空,用「所属项目 + 序号」兜底,
+// 否则读屏用户只会听到 12 遍一模一样的标签
+const projectTitles = new Map(
+  (await getCollection("projects")).map((p) => [p.id, p.data.title]),
+);
+
 const heroCount = heroes.length;
+
+// 与 .max-w-5xl px-5 + gap-10 的三段栅格对应,让浏览器按真实显示宽度挑档
+const GRID_SIZES = "(min-width: 1024px) 301px, (min-width: 640px) 50vw, 100vw";
 ---
 
 <BaseLayout>
   {
     heroCount > 0 && (
-      <section class="relative h-[85vh] w-full overflow-hidden bg-neutral-100 dark:bg-neutral-900">
-        {
-          heroes.map((h, i) => (
-            <img
-              class:list={[
-                "hero-slide absolute inset-0 h-full w-full object-cover transition-opacity duration-700 ease-in-out",
-                i === 0 ? "opacity-100" : "opacity-0",
-              ]}
-              src={cloudinaryUrl(h.data.filename, 1600)}
-              alt={h.data.alt ?? h.data.title ?? ""}
-              fetchpriority={i === 0 ? "high" : undefined}
-              loading={i === 0 ? "eager" : "lazy"}
-              decoding="async"
-              draggable="false"
-            />
-          ))
-        }
-        <!-- 左右点击区(整块半屏),箭头仅悬停浮现 -->
+      <section class="hero-stage relative w-full overflow-hidden bg-neutral-100 dark:bg-[#0B0B0C]">
+        {heroes.map((h, i) => (
+          <img
+            class:list={[
+              "hero-slide absolute inset-0 h-full w-full object-contain transition-opacity duration-700 ease-in-out",
+              i === 0 ? "opacity-100" : "opacity-0",
+            ]}
+            src={cloudinaryUrl(h.data.filename, 1600)}
+            srcset={cloudinarySrcset(h.data.filename, h.data.width)}
+            sizes="100vw"
+            width={h.data.width}
+            height={h.data.height}
+            alt={h.data.alt ?? h.data.title ?? ""}
+            fetchpriority={i === 0 ? "high" : undefined}
+            loading={i === 0 ? "eager" : "lazy"}
+            decoding="async"
+            draggable="false"
+          />
+        ))}
+        <!-- 左右点击区(整块半屏),箭头常驻但压低存在感 -->
         {
           heroCount > 1 && (
             <>
@@ -52,28 +64,32 @@ const heroCount = heroes.length;
                 type="button"
                 aria-label="上一张"
                 class="absolute inset-y-0 left-0 w-1/2 cursor-pointer"
-              ></button>
+              />
               <button
                 id="hero-right"
                 type="button"
                 aria-label="下一张"
                 class="absolute inset-y-0 right-0 w-1/2 cursor-pointer"
-              ></button>
+              />
               <button
                 id="hero-prev"
                 type="button"
                 aria-label="上一张"
-                class="absolute left-5 top-1/2 -translate-y-1/2 p-3 text-2xl text-white/80 opacity-50 transition-opacity duration-300 hover:opacity-100"
+                class="absolute left-4 top-1/2 -translate-y-1/2 rounded-full p-3 text-ink/60 transition hover:bg-black/5 hover:text-ink dark:text-white/60 dark:hover:bg-white/10 dark:hover:text-white"
               >
-                &larr;
+                <svg class="block h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="m15 6-6 6 6 6" />
+                </svg>
               </button>
               <button
                 id="hero-next"
                 type="button"
                 aria-label="下一张"
-                class="absolute right-5 top-1/2 -translate-y-1/2 p-3 text-2xl text-white/80 opacity-50 transition-opacity duration-300 hover:opacity-100"
+                class="absolute right-4 top-1/2 -translate-y-1/2 rounded-full p-3 text-ink/60 transition hover:bg-black/5 hover:text-ink dark:text-white/60 dark:hover:bg-white/10 dark:hover:text-white"
               >
-                &rarr;
+                <svg class="block h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="m9 6 6 6-6 6" />
+                </svg>
               </button>
             </>
           )
@@ -84,20 +100,35 @@ const heroCount = heroes.length;
 
   <!-- 精选墙:12 张,保留原始比例,宽松间距 -->
   <section class="mx-auto w-full max-w-5xl px-5 pt-16 pb-24">
-    <div class="columns-1 gap-10 sm:columns-2 lg:columns-3">
+    <div class="mb-10 flex items-baseline justify-between">
+      <h2 class="text-xs tracking-[0.2em] text-mist">精选</h2>
+      <a
+        href="/projects/"
+        class="text-xs tracking-[0.2em] text-mist transition-colors hover:text-ink dark:hover:text-neutral-100"
+      >
+        全部项目 →
+      </a>
+    </div>
+
+    <div class="grid grid-cols-1 items-start gap-10 sm:grid-cols-2 lg:grid-cols-3">
       {
-        picks.map((p) => (
+        picks.map((p, i) => (
           <button
-            class="lightbox-trigger glow-card group mb-10 block w-full break-inside-avoid bg-neutral-100 text-left dark:bg-neutral-900"
+            class="lightbox-trigger photo-tile block w-full overflow-hidden text-left"
+            style={p.data.color ? `background-color:${p.data.color}` : undefined}
             data-big={cloudinaryUrl(p.data.filename, 1600)}
-            aria-label="放大查看照片"
+            aria-label={`放大查看：${p.data.alt?.trim() || `${projectTitles.get(p.data.project) ?? p.data.project} 第 ${i + 1} 张`}`}
           >
             <img
-              src={cloudinaryUrl(p.data.filename, 1200)}
-              alt={p.data.alt ?? p.data.title ?? ""}
+              src={cloudinaryUrl(p.data.filename, 800)}
+              srcset={cloudinarySrcset(p.data.filename, p.data.width)}
+              sizes={GRID_SIZES}
+              width={p.data.width}
+              height={p.data.height}
+              alt={p.data.alt ?? ""}
               loading="lazy"
               decoding="async"
-              class="h-auto w-full transition-transform duration-700 ease-out group-hover:scale-[1.02]"
+              class="h-auto w-full"
             />
           </button>
         ))
@@ -109,7 +140,7 @@ const heroCount = heroes.length;
 </BaseLayout>
 
 <script>
-  // Hero 轮播:点击左/右半区淡入淡出切换(纯 JS;featured 只有 1 张时自动无操作)
+  // 首屏轮播:点击左/右半区淡入淡出切换(纯 JS;featured 只有 1 张时自动无操作)
   ;(function () {
     const slides = Array.from(document.querySelectorAll(".hero-slide"));
     if (slides.length < 2) return;
@@ -133,16 +164,5 @@ const heroCount = heroes.length;
     document.getElementById("hero-right")?.addEventListener("click", () => step(1));
     document.getElementById("hero-prev")?.addEventListener("click", () => step(-1));
     document.getElementById("hero-next")?.addEventListener("click", () => step(1));
-  })();
-
-  // 精选墙悬停光晕:光斑跟随鼠标(样式见 global.css .glow-card)
-  ;(function () {
-    document.querySelectorAll(".glow-card").forEach((card) => {
-      card.addEventListener("mousemove", (e) => {
-        const r = card.getBoundingClientRect();
-        card.style.setProperty("--mx", `${e.clientX - r.left}px`);
-        card.style.setProperty("--my", `${e.clientY - r.top}px`);
-      });
-    });
   })();
 </script>

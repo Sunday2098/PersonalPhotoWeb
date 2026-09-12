@@ -1,6 +1,6 @@
 ---
 // 项目卡片:封面 + 标题 + 拍摄时间/地点(PRD V1.2 项目元素;留空则不显示)
-import { cloudinaryUrl } from "../lib/images";
+import { cloudinaryUrl, cloudinarySrcset } from "../lib/images";
 
 interface Props {
   slug: string;
@@ -8,30 +8,36 @@ interface Props {
   coverImage: string;
   date?: string | null;
   location?: string | null;
+  // 封面图元信息(取自同名的 photo 条目:项目 frontmatter 只存文件名)
+  width?: number;
+  height?: number;
+  color?: string;
 }
 
-const { slug, title, coverImage, date, location } = Astro.props;
-const cover = cloudinaryUrl(coverImage, 1200);
+const { slug, title, coverImage, date, location, width, height, color } = Astro.props;
 const meta = [date, location].filter(Boolean).join(" · ");
+
+// 两列栅格:max-w-5xl px-5 + gap-x-10 下每列约 472px
+const SIZES = "(min-width: 640px) 472px, 100vw";
 ---
 
-<a
-  href={`/projects/${slug}/`}
-  class="group block"
->
-  <div class="overflow-hidden bg-neutral-100 dark:bg-neutral-900">
+<a href={`/projects/${slug}/`} class="block">
+  <div
+    class="photo-tile aspect-[3/2] overflow-hidden"
+    style={color ? `background-color:${color}` : undefined}
+  >
     <img
-      src={cover}
+      src={cloudinaryUrl(coverImage, 800)}
+      srcset={cloudinarySrcset(coverImage, width)}
+      sizes={SIZES}
+      width={width}
+      height={height}
       alt={title}
       loading="lazy"
       decoding="async"
-      class="aspect-[3/2] w-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.03]"
+      class="h-full w-full object-cover"
     />
   </div>
   <h2 class="mt-4 text-lg font-medium dark:text-neutral-100">{title}</h2>
-  {
-    meta && (
-      <p class="mt-1 text-xs tracking-wide text-mist">{meta}</p>
-    )
-  }
+  {meta && <p class="mt-1 text-xs tracking-wide text-mist">{meta}</p>}
 </a>

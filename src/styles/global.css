@@ -53,6 +53,11 @@ a:hover {
   opacity: 1;
 }
 
+/* 灯箱图片标注:无内容时整体收起(不留 gap 占位) */
+.lb-caption:empty {
+  display: none;
+}
+
 /* 灯箱大图:放大模式(PRD V1.2 §4.4 右上角放大按钮,1x ↔ 2x) */
 .lb-zoomed {
   transform: scale(2);
@@ -75,29 +80,42 @@ a:hover {
   }
 }
 
-/* 首页精选墙悬停光晕:跟随鼠标的柔光(PRD V1.2 首页交互) */
-.glow-card {
-  position: relative;
-}
-.glow-card::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 0.4s ease;
-  background: radial-gradient(
-    420px circle at var(--mx, 50%) var(--my, 50%),
-    rgba(196, 168, 130, 0.35),
-    transparent 65%
-  );
-  mix-blend-mode: screen;
-}
-.glow-card:hover::after {
-  opacity: 1;
+/* 首屏舞台:svh 在移动端地址栏收放时不跳动,不支持的浏览器回落到 vh */
+.hero-stage {
+  height: 85vh;
+  height: 85svh;
 }
 
-/* 拍摄手记(Markdown 渲染) */
+/* 照片瓦片:解码前先露出主色底(background-color 由页面按每张图的主色内联注入),
+   解码完成后淡入。悬停只做轻微推近——不用混合模式光晕,避免给照片盖上一层色偏。 */
+.photo-tile img {
+  opacity: 0;
+  transition:
+    opacity 0.5s ease,
+    transform 0.6s cubic-bezier(0.2, 0, 0, 1);
+}
+.photo-tile img.is-loaded {
+  opacity: 1;
+}
+.photo-tile:hover img {
+  transform: scale(1.02);
+}
+
+/* 尊重「减少动效」偏好(本文件新增的淡入/推近与全局平滑滚动一并关闭) */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  .photo-tile img,
+  .hero-slide {
+    transition: none;
+  }
+  .photo-tile:hover img {
+    transform: none;
+  }
+}
+
+/* 长文段落(关于页自我介绍) */
 .story p {
   @apply mb-5 leading-loose text-ink/90 dark:text-neutral-200/90;
 }

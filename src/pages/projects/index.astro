@@ -7,6 +7,16 @@ import ProjectCard from "../../components/ProjectCard.astro";
 const projects = (await getCollection("projects")).sort((a, b) =>
   (b.data.date ?? "").localeCompare(a.data.date ?? ""),
 );
+
+// 封面图的宽高与主色不存在项目 frontmatter 里(那里只有文件名),
+// 按文件名到 photos 集合取,取不到就留空(图片照常显示,只是没有占位底色)
+const metaByFilename = new Map(
+  (await getCollection("photos")).map((p) => [p.data.filename, p.data]),
+);
+const covers = projects.map((p) => {
+  const m = metaByFilename.get(p.data.coverImage);
+  return { project: p, width: m?.width, height: m?.height, color: m?.color };
+});
 ---
 
 <BaseLayout title="项目 · 夏至未至">
@@ -14,20 +24,22 @@ const projects = (await getCollection("projects")).sort((a, b) =>
     <header class="pb-14 pt-4">
       <h1 class="text-2xl font-light tracking-wide dark:text-neutral-100">项目</h1>
       <p class="mt-4 max-w-xl text-sm leading-relaxed text-mist">
-        每一组照片,都是一段时光的存档。像一页页私人笔记——
-        点击进入,照片与文字一起,讲完那个故事。
+        每一组照片，是一段时光的切片。点开，慢慢看。
       </p>
     </header>
 
     <div class="grid grid-cols-1 gap-x-10 gap-y-14 pb-24 sm:grid-cols-2">
       {
-        projects.map((p) => (
+        covers.map(({ project: p, width, height, color }) => (
           <ProjectCard
             slug={p.id}
             title={p.data.title}
             coverImage={p.data.coverImage}
             date={p.data.date}
             location={p.data.location}
+            width={width}
+            height={height}
+            color={color}
           />
         ))
       }
