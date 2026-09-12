@@ -39,8 +39,8 @@ const meta = [project.data.date, project.data.location]
 const labelFor = (p: (typeof photos)[number], i: number) =>
   p.data.alt?.trim() || `${project.data.title} 第 ${i + 1} 张`;
 
-// 与下方 .max-w-5xl px-5 + gap-6 的三段栅格对应,让浏览器按真实显示宽度挑档
-const GRID_SIZES = "(min-width: 1024px) 312px, (min-width: 640px) 50vw, 100vw";
+// 与下方 .max-w-5xl px-5 + gap-6 的三栏瀑布流对应,让浏览器按真实显示宽度挑档
+const COLUMN_SIZES = "(min-width: 1024px) 312px, (min-width: 640px) 50vw, 100vw";
 ---
 
 <BaseLayout title={`${project.data.title} · 夏至未至`}>
@@ -55,12 +55,13 @@ const GRID_SIZES = "(min-width: 1024px) 312px, (min-width: 640px) 50vw, 100vw";
       {meta && <p class="mt-4 text-xs tracking-[0.15em] text-mist">{meta}</p>}
     </header>
 
-    <!-- 照片集:网格布局保留原始比例(不裁切),阅读顺序按行而非按列 -->
-    <div class="grid grid-cols-1 items-start gap-6 pb-28 sm:grid-cols-2 lg:grid-cols-3">
+    <!-- 照片集:瀑布流保留原始比例(不裁切)。用 columns 而非 grid:grid 每行高度
+         由该行最高的图决定,同行的横图下方会空出一块,比例差异越大空白越多。 -->
+    <div class="columns-1 gap-6 pb-28 sm:columns-2 lg:columns-3">
       {
         photos.map((p, i) => (
           <button
-            class="lightbox-trigger block w-full text-left"
+            class="lightbox-trigger mb-6 block w-full break-inside-avoid text-left"
             data-index={i}
             aria-label={`查看大图：${labelFor(p, i)}`}
           >
@@ -71,7 +72,7 @@ const GRID_SIZES = "(min-width: 1024px) 312px, (min-width: 640px) 50vw, 100vw";
               <img
                 src={cloudinaryUrl(p.data.filename, 800)}
                 srcset={cloudinarySrcset(p.data.filename, p.data.width)}
-                sizes={GRID_SIZES}
+                sizes={COLUMN_SIZES}
                 width={p.data.width}
                 height={p.data.height}
                 alt=""

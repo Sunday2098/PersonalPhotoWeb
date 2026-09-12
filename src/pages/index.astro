@@ -29,8 +29,8 @@ const projectTitles = new Map(
 
 const heroCount = heroes.length;
 
-// 与 .max-w-5xl px-5 + gap-10 的三段栅格对应,让浏览器按真实显示宽度挑档
-const GRID_SIZES = "(min-width: 1024px) 301px, (min-width: 640px) 50vw, 100vw";
+// 与下方 .max-w-5xl px-5 + gap-10 的三栏瀑布流对应,让浏览器按真实显示宽度挑档
+const COLUMN_SIZES = "(min-width: 1024px) 301px, (min-width: 640px) 50vw, 100vw";
 ---
 
 <BaseLayout>
@@ -98,7 +98,9 @@ const GRID_SIZES = "(min-width: 1024px) 301px, (min-width: 640px) 50vw, 100vw";
     )
   }
 
-  <!-- 精选墙:12 张,保留原始比例,宽松间距 -->
+  <!-- 精选墙:12 张,瀑布流保留原始比例,宽松间距 -->
+  <!-- 用 columns 而非 grid:grid 每行高度由该行最高的图决定,同行的横图下方会空出一块;
+       比例差异越大空白越多。columns 每列独立排布,图与图之间只留 gap 与 mb。 -->
   <section class="mx-auto w-full max-w-5xl px-5 pt-16 pb-24">
     <div class="mb-10 flex items-baseline justify-between">
       <h2 class="text-xs tracking-[0.2em] text-mist">精选</h2>
@@ -110,11 +112,11 @@ const GRID_SIZES = "(min-width: 1024px) 301px, (min-width: 640px) 50vw, 100vw";
       </a>
     </div>
 
-    <div class="grid grid-cols-1 items-start gap-10 sm:grid-cols-2 lg:grid-cols-3">
+    <div class="columns-1 gap-10 sm:columns-2 lg:columns-3">
       {
         picks.map((p, i) => (
           <button
-            class="lightbox-trigger photo-tile block w-full overflow-hidden text-left"
+            class="lightbox-trigger photo-tile mb-10 block w-full break-inside-avoid overflow-hidden text-left"
             style={p.data.color ? `background-color:${p.data.color}` : undefined}
             data-big={cloudinaryUrl(p.data.filename, 1600)}
             aria-label={`放大查看：${p.data.alt?.trim() || `${projectTitles.get(p.data.project) ?? p.data.project} 第 ${i + 1} 张`}`}
@@ -122,7 +124,7 @@ const GRID_SIZES = "(min-width: 1024px) 301px, (min-width: 640px) 50vw, 100vw";
             <img
               src={cloudinaryUrl(p.data.filename, 800)}
               srcset={cloudinarySrcset(p.data.filename, p.data.width)}
-              sizes={GRID_SIZES}
+              sizes={COLUMN_SIZES}
               width={p.data.width}
               height={p.data.height}
               alt={p.data.alt ?? ""}
