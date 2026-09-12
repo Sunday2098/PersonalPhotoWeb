@@ -151,8 +151,6 @@ async function createProject({ id, title, description = "", date = "", location 
     `location: ${location ? yamlStr(location) : ""}`,
     "---",
     "",
-    "(拍摄手记待补充)",
-    "",
   ].join("\n");
   await writeFile(path.join(projectsDir, `${id}.md`), frontmatter, "utf8");
   return { id };
