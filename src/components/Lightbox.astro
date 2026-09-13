@@ -8,13 +8,13 @@
 //   每次显示即时读取卡片当前的 data-big,外部换图后仍与墙面一致。
 // 交互(PRD V1.2 §4.4):深色背景;左上角显示 当前序号/总数;右上角 全屏/放大/关闭;
 //   左右箭头在图片外(桌面端在视口两侧,移动端在底部控制条);大图加载显示占位;
-//   ESC/点击图片以外区域关闭;触屏左右滑动切换;图片下方显示 标题 · 相机 · 焦段 · ISO(留空则不显示)。
+//   ESC/点击图片以外区域关闭;触屏左右滑动切换;图片下方显示 标题 · 拍摄设备(留空则不显示)。
 // 同页可渲染多个实例(id 各不相同);默认实例兼容不带 data-lightbox 的旧触发器。
 
+// 灯箱只渲染拍摄设备(camera)。焦段/光圈/ISO 在内容 frontmatter 里仍然保留,
+// 只是按需求不在放大视图显示 —— 日后要放回来,从这里加回字段即可。
 interface ExifInfo {
   camera?: string;
-  focalLength?: string;
-  iso?: number;
 }
 
 interface LightboxPhoto {
@@ -84,7 +84,7 @@ const lbId = id;
       alt=""
       draggable="false"
     />
-    <!-- 图片标注:标题 + 相机/焦段/ISO。无内容时由 .lb-caption:empty 隐藏 -->
+    <!-- 图片标注:标题 + 拍摄设备。无内容时由 .lb-caption:empty 隐藏 -->
     <p class="lb-caption mx-6 max-w-2xl text-center text-xs leading-relaxed tracking-[0.15em] text-white/50"></p>
   </div>
 
@@ -187,19 +187,12 @@ const lbId = id;
       img.classList.remove("lb-zoomed"); // 换图时还原放大
     }
 
-    // 图片标注:标题 · 相机 · 焦段 · 光圈 · ISO(逐项过滤空值)
+    // 图片标注:标题 · 拍摄设备(逐项过滤空值)。
+    // 焦段/光圈/ISO 按需求不再展示;数据仍在内容 frontmatter 里,没有删。
     function captionOf(photo) {
       if (!photo) return "";
       const exif = photo.exif || {};
-      return [
-        photo.title,
-        exif.camera,
-        exif.focalLength,
-        exif.aperture,
-        exif.iso ? "ISO " + exif.iso : "",
-      ]
-        .filter(Boolean)
-        .join(" · ");
+      return [photo.title, exif.camera].filter(Boolean).join(" · ");
     }
 
     // 标注留空时 .lb-caption:empty 会自动隐藏;alt 用于无障碍
