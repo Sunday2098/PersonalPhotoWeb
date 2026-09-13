@@ -21,11 +21,11 @@ const photos = (await getCollection("photos"))
   .filter((p) => p.data.project === project.id)
   .sort((a, b) => (b.data.date ?? "").localeCompare(a.data.date ?? ""));
 
+// 灯箱不再显示拍摄信息,所以不传 exif(内容 frontmatter 里的数据没删)
 const lightboxPhotos = photos.map((p) => ({
   src: cloudinaryUrl(p.data.filename, 1600),
   title: p.data.title ?? "",
   alt: p.data.alt ?? "",
-  exif: p.data.exif,
 }));
 
 // 标题下方的一句话简介与「拍摄时间 · 地点」,留空则不渲染该行
