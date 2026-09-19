@@ -3,9 +3,11 @@
 // 用法:页面渲染 <Lightbox photos={[{ src, title, alt }]} id="lb-xxx" />,
 // 给缩略图加 class="lightbox-trigger" + data-lightbox={灯箱 id}(不带 = 默认实例)+ data-index={i},
 // 点击即在 i 处打开灯箱,←/→ 在 photos 数组内切换(项目页)。
-// 若触发器自带 data-big(大图 URL),则进入"卡片浏览模式"(首页精选墙):
-//   放大该卡片当前展示的图,←/→ 在本灯箱所有带 data-big 的卡片之间循环。
+// 若触发器自带 data-big(大图 URL),则进入"卡片浏览模式"(首页精选墙 / 项目页):
+//   放大该卡片当前展示的图,←/→ 在本灯箱所有带 data-big 且未被隐藏的卡片之间循环。
 //   每次显示即时读取卡片当前的 data-big,外部换图后仍与墙面一致。
+//   带 data-title 的卡片会在图下显示标题(项目页用);被 display:none 的卡片(标签筛选)
+//   不参与循环。
 // 交互(PRD V1.2 §4.4):深色背景;左上角显示 当前序号/总数;右上角 全屏/放大/关闭;
 //   左右箭头在图片外(桌面端在视口两侧,移动端在底部控制条);大图加载显示占位;
 //   ESC/点击图片以外区域关闭;触屏左右滑动切换;图片下方仅在照片有标题时显示标题。
@@ -79,7 +81,8 @@ const lbId = id;
       alt=""
       draggable="false"
     />
-    <!-- 图片标注:仅标题(拍摄设备与参数均不显示)。无内容时由 .lb-caption:empty 隐藏 -->
+    <!-- 图片标注:标题 + 可选的拍摄参数(该照片在后台勾了「显示拍摄参数」才有)。
+         无内容时由 .lb-caption:empty 整体隐藏 -->
     <p class="lb-caption mx-6 max-w-2xl text-center text-xs leading-relaxed tracking-[0.15em] text-white/50"></p>
   </div>
 
@@ -157,8 +160,16 @@ const lbId = id;
     let cardIndex = -1; // 卡片浏览模式(带 data-big 的触发器)当前位;-1 = 数组模式
     let touchX = 0;
 
+    // 只数「看得见」的触发器:项目页的标签筛选会把不匹配的瓦片 display:none,
+    // 不排除掉的话 ←/→ 会翻到用户已经筛掉的图上
+    function liveTriggers() {
+      return triggers.filter(function (el) {
+        return el.offsetParent !== null;
+      });
+    }
+
     function total() {
-      return cardIndex >= 0 ? triggers.length : myPhotos.length;
+      return cardIndex >= 0 ? liveTriggers().length : myPhotos.length;
     }
 
     function updateNav() {
@@ -182,15 +193,26 @@ const lbId = id;
       img.classList.remove("lb-zoomed"); // 换图时还原放大
     }
 
-    // 图片标注:只保留标题 —— 拍摄设备与拍摄参数(焦段/光圈/ISO)按要求均不显示。
-    // 照片标题目前都是空的, 所以这一行实际不会出现(.lb-caption:empty 会隐藏它)。
-    function captionOf(photo) {
-      return photo ? photo.title || "" : "";
-    }
-
-    // 标注留空时 .lb-caption:empty 会自动隐藏;alt 用于无障碍
+    // 图片标注:标题一行,拍摄参数一行。
+    // 参数串在构建期就拼好、只在照片开了「显示拍摄参数」时才挂到卡片的 data-exif 上,
+    // 这里只负责摆位置 —— 前端不判断开关也不拼字段,少一处会跟后台逻辑走样的地方。
+    // 两行都空时 caption 保持 :empty,由 .lb-caption:empty 整体收起(不留空隙)。
     function setMeta(photo, alt) {
-      caption.textContent = captionOf(photo);
+      caption.textContent = "";
+      const title = photo ? photo.title || "" : "";
+      const exif = photo ? photo.exif || "" : "";
+      if (title) {
+        const t = document.createElement("span");
+        t.className = "lb-title";
+        t.textContent = title;
+        caption.appendChild(t);
+      }
+      if (exif) {
+        const e = document.createElement("span");
+        e.className = "lb-exif";
+        e.textContent = exif;
+        caption.appendChild(e);
+      }
       img.alt = alt || "";
     }
 
@@ -205,19 +227,22 @@ const lbId = id;
 
     // 卡片浏览:内容即时读卡片的 data-big(点击/切换瞬间取值)
     function showCard(i) {
-      const n = triggers.length;
+      const live = liveTriggers();
+      const n = live.length;
       if (!n) return;
       cardIndex = ((i % n) + n) % n;
-      const el = triggers[cardIndex];
+      const el = live[cardIndex];
       setLoading();
       img.src = el.dataset.big;
-      // 精选墙的卡片没有标题/EXIF,标注留空;无障碍名称取卡片自身图片的 alt
-      setMeta(null, el.querySelector("img")?.alt || "");
+      // 标注取卡片自带的 data-title / data-exif(精选墙不设,留空);
+      // 无障碍名称取卡片图片的 alt
+      const alt = el.querySelector("img")?.alt || "";
+      setMeta({ title: el.dataset.title || "", exif: el.dataset.exif || "" }, alt);
       updateNav();
     }
 
     function openCard(el) {
-      const i = triggers.indexOf(el);
+      const i = liveTriggers().indexOf(el);
       if (i < 0) return;
       showCard(i);
       openBox();

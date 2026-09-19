@@ -13,6 +13,13 @@ dist/
 inbox/
 src/assets/photos/
 
+# 回收站:被删照片的数据文件停在这里等恢复。
+# 不进仓库 —— 已删内容不该留在公开 git 历史里(回收站只在本机有效)
+src/content/trash/
+
+# 后台本机配置(上传压缩开关等,与具体机器相关,不参与部署)
+admin/settings.json
+
 # 系统文件
 .DS_Store
 Thumbs.db

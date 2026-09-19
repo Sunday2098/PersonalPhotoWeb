@@ -22,7 +22,11 @@
   .btn.primary:hover { background: #b39572; }
   .layout { display: grid; grid-template-columns: 300px 1fr; min-height: calc(100vh - 57px); }
   /* 左侧项目列表 */
-  aside { border-right: 1px solid var(--line); padding: 18px 16px; overflow-y: auto; max-height: calc(100vh - 57px); }
+  aside { border-right: 1px solid var(--line); padding: 18px 16px; max-height: calc(100vh - 57px); display: flex; flex-direction: column; }
+  /* 项目列表自己滚动,底部「新建项目」按钮始终可见 */
+  .proj-scroll { flex: 1; overflow-y: auto; min-height: 0; }
+  .aside-foot { flex: none; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
+  .aside-foot .btn { width: 100%; }
   aside h2 { font-size: 13px; color: var(--mist); font-weight: 500; margin-bottom: 10px; letter-spacing: 1px; }
   .proj { display: flex; align-items: center; gap: 8px; padding: 10px 12px; margin-bottom: 6px; border: 1px solid transparent; border-radius: 6px; cursor: pointer; transition: all .15s; }
   .proj:hover { background: #f5f5f3; }
@@ -32,9 +36,15 @@
   .proj .count { font-size: 12px; color: var(--mist); background: #f0f0ee; border-radius: 10px; padding: 0 8px; }
   /* 右侧照片网格 */
   main { padding: 18px 20px; overflow-y: auto; max-height: calc(100vh - 57px); }
-  .toolbar { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+  .toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
   .toolbar h2 { font-size: 16px; font-weight: 600; }
   .toolbar .info { font-size: 12px; color: var(--mist); }
+  .toolbar .search { margin-left: auto; width: 200px; padding: 7px 10px; border: 1px solid var(--line); border-radius: 4px; font-size: 13px; outline: none; }
+  .toolbar .search:focus { border-color: var(--terra); }
+  .seg { display: flex; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+  .seg button { padding: 6px 12px; border: none; background: #fff; color: var(--mist); font-size: 12px; cursor: pointer; }
+  .seg button + button { border-left: 1px solid var(--line); }
+  .seg button.on { background: var(--ink); color: #fff; }
   .selbar { display: none; align-items: center; gap: 12px; margin-bottom: 16px; padding: 10px 14px; background: var(--sel); border: 1px solid var(--terra); border-radius: 6px; font-size: 13px; }
   .selbar.show { display: flex; }
   .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
@@ -57,6 +67,66 @@
   .danger:hover { background: #8f2d24 !important; }
   #push-log { background: #f7f7f5; border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; font: 12px/1.6 Consolas, monospace; white-space: pre-wrap; max-height: 260px; overflow-y: auto; margin-bottom: 12px; min-height: 60px; }
   .empty { padding: 60px 0; text-align: center; color: var(--mist); font-size: 13px; }
+  /* 头部 Git 状态胶囊 */
+  .chip { padding: 6px 12px; border: 1px solid var(--line); border-radius: 999px; background: #f7f7f5; color: var(--mist); font-size: 12px; cursor: pointer; transition: all .15s; }
+  .chip:hover { border-color: var(--terra); color: var(--ink); }
+  .chip.dirty { background: var(--sel); border-color: var(--terra); color: var(--ink); }
+  .chip b { color: #b0392e; }
+  /* 回收站 */
+  .trash-row { display: flex; align-items: center; gap: 12px; padding: 8px; border: 1px solid var(--line); border-radius: 6px; margin-bottom: 8px; background: #fff; }
+  .trash-row img { width: 72px; height: 48px; object-fit: cover; border-radius: 4px; background: #f0f0ee; flex: none; }
+  .trash-row .meta { flex: 1; min-width: 0; }
+  .trash-row .meta b { display: block; font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .trash-row .meta span { font-size: 12px; color: var(--mist); }
+  /* 列表视图 */
+  .list { border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+  .list .row { display: flex; align-items: center; gap: 12px; padding: 6px 10px; border-bottom: 1px solid var(--line); cursor: pointer; font-size: 13px; }
+  .list .row:last-child { border-bottom: none; }
+  .list .row:hover { background: #fafaf8; }
+  .list .row.sel { background: var(--sel); }
+  .list .row img { width: 56px; height: 38px; object-fit: cover; border-radius: 3px; background: #f0f0ee; flex: none; }
+  .list .row .t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .list .row .f { width: 190px; color: var(--mist); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .list .row .n { width: 82px; color: var(--mist); font-size: 12px; text-align: right; }
+  .list .row .d { width: 96px; color: var(--mist); font-size: 12px; }
+  .list .row .acts { position: static; flex-direction: row; opacity: 1; }
+  /* 仪表盘 */
+  .stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 12px; }
+  .stat { border: 1px solid var(--line); border-radius: 8px; padding: 16px 18px; background: #fff; }
+  .stat .k { font-size: 12px; color: var(--mist); margin-bottom: 6px; }
+  .stat .v { font-size: 22px; font-weight: 300; letter-spacing: .5px; }
+  .stat .v small { font-size: 12px; color: var(--mist); font-weight: 400; margin-left: 4px; }
+  /* 拖拽手柄:只在手柄上按下才能排序,避免和「拖到别的项目」打架 */
+  .handle { position: absolute; top: 4px; left: 4px; width: 22px; height: 22px; border-radius: 4px; background: rgba(0,0,0,.5); color: #fff; font-size: 12px; line-height: 22px; text-align: center; cursor: grab; opacity: 0; transition: opacity .15s; z-index: 2; }
+  .ph:hover .handle, .proj:hover .handle { opacity: 1; }
+  .handle:active { cursor: grabbing; }
+  /* 项目卡片的把手参与流式布局、常驻可见(需求:悬停变 grab 提示可拖) */
+  .proj .handle { position: static; flex: none; width: 14px; height: 18px; line-height: 18px; background: none; color: var(--mist); font-size: 13px; opacity: .45; }
+  .proj:hover .handle { opacity: 1; color: var(--ink); }
+  .ph.drop-before::before, .ph.drop-after::after { content: ""; position: absolute; top: 0; bottom: 0; width: 3px; background: var(--terra); z-index: 3; }
+  .ph.drop-before::before { left: -7px; }
+  .ph.drop-after::after { right: -7px; }
+  .proj.drop-before, .proj.drop-after { position: relative; }
+  .proj.drop-before::before, .proj.drop-after::after { content: ""; position: absolute; left: 0; right: 0; height: 2px; background: var(--terra); }
+  .proj.drop-before::before { top: -3px; }
+  .proj.drop-after::after { bottom: -3px; }
+  /* 可见性徽标 */
+  .vis { font-size: 10px; padding: 0 5px; border-radius: 3px; border: 1px solid var(--line); color: var(--mist); }
+  .vis.draft { border-style: dashed; }
+  .proj.is-private .name, .proj.is-draft .name { color: var(--mist); }
+  /* 项目设置 / 编辑弹窗里的多行输入 */
+  .field textarea { width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 4px; font-size: 14px; font: inherit; font-size: 14px; outline: none; resize: vertical; }
+  .field textarea:focus { border-color: var(--terra); }
+  .field select { width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 4px; font-size: 14px; outline: none; background: #fff; }
+  .field .row2 { display: flex; gap: 10px; }
+  .field .row2 > div { flex: 1; }
+  .modal .sect { font-size: 12px; color: var(--mist); letter-spacing: 1px; margin: 18px 0 10px; padding-top: 14px; border-top: 1px solid var(--line); }
+  .modal .sect:first-of-type { margin-top: 0; padding-top: 0; border-top: none; }
+  .modal.wide { width: 560px; }
+  /* 标签 chips(项目页筛选 / 后台编辑预览) */
+  .tagchip { display: inline-block; padding: 3px 10px; border: 1px solid var(--line); border-radius: 999px; font-size: 12px; color: var(--mist); cursor: pointer; background: #fff; transition: all .15s; }
+  .tagchip:hover { border-color: var(--terra); color: var(--ink); }
+  .tagchip.on { background: var(--terra); border-color: var(--terra); color: #fff; }
   /* 新建项目弹窗 */
   .mask { display: none; position: fixed; inset: 0; z-index: 50; background: rgba(0,0,0,.45); align-items: center; justify-content: center; }
   .mask.show { display: flex; }
@@ -70,19 +140,27 @@
   /* 提示 */
   #toast { position: fixed; left: 50%; bottom: 40px; transform: translateX(-50%) translateY(20px); background: var(--ink); color: #fff; padding: 10px 20px; border-radius: 6px; font-size: 13px; opacity: 0; pointer-events: none; transition: all .3s; z-index: 60; }
   #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* 弹窗内的小节标题与复选框行 */
+  .sect { font-size: 12px; color: var(--mist); margin: 14px 0 8px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
+  .modal .field:first-of-type + .sect, .sect:first-child { margin-top: 0; }
+  .chk { display: flex; align-items: center; gap: 6px; font-size: 13px; margin: 0 0 12px; cursor: pointer; }
+  .chk input { width: auto; margin: 0; }
 </style>
 </head>
 <body>
 
 <header>
   <div>
-    <h1>夏至未至 · 后台管理</h1>
+    <h1 id="adminTitle">夏至未至 · 后台管理</h1>
     <span class="hint">仅本机可用 · 改动直接写入本地内容文件,完成后 git push 上线</span>
   </div>
-  <div style="display:flex;gap:10px">
+  <div style="display:flex;gap:10px;align-items:center">
+    <button class="chip" id="gitChip" title="Git 状态"></button>
     <button class="btn ghost" id="refresh">刷新</button>
     <button class="btn" id="addPhotos">＋ 添加照片</button>
     <button class="btn primary" id="newProject">＋ 新建项目</button>
+    <button class="btn ghost" id="siteSettings" title="全局设置(站点信息与上传配置)">⚙</button>
     <button class="btn" id="gitPush" style="background:var(--ink);color:#fff;border-color:var(--ink)">🚀 推送上线</button>
   </div>
 </header>
@@ -90,21 +168,34 @@
 <div class="layout">
   <aside>
     <h2>项目(<span id="projTotal">0</span>)· 拖照片到卡片上移动</h2>
-    <div id="projList"></div>
+    <div id="projList" class="proj-scroll"></div>
+    <div class="aside-foot">
+      <button class="btn" id="newProject2">＋ 新建项目</button>
+    </div>
   </aside>
 
   <main>
     <div class="toolbar">
       <h2 id="curTitle">请选择项目</h2>
       <span class="info" id="curInfo"></span>
+      <button class="btn ghost" id="projSettings" title="项目设置(名称/封面/描述/可见性/删除)">⚙ 项目设置</button>
+      <input class="search" id="searchBox" type="search" placeholder="搜索标题或文件名…" />
+      <div class="seg" id="viewToggle">
+        <button data-v="grid" class="on">网格</button><button data-v="list">列表</button>
+      </div>
     </div>
     <div class="selbar" id="selbar">
       <span id="selCount">已选 0 张</span>
-      <span style="color:var(--mist);font-size:12px">拖拽任意一张到左侧项目卡片,或直接点击左侧目标项目</span>
+      <span style="color:var(--mist);font-size:12px">拖到左侧项目卡片=移动;手柄 ⋮⋮ 拖动=调整顺序</span>
       <button class="btn ghost" id="selAll" style="margin-left:auto">全选</button>
       <button class="btn ghost" id="selFeatured">设为精选</button>
+      <button class="btn ghost" id="selUnfeatured">取消精选</button>
+      <select class="btn ghost" id="selMove" title="批量移动到其他项目">
+        <option value="">移动到…</option>
+      </select>
+      <button class="btn ghost" id="selBatch">批量编辑</button>
       <button class="btn ghost" id="selClear">取消选择</button>
-      <button class="btn danger" id="selDelete">删除所选</button>
+      <button class="btn danger" id="selDelete">移入回收站</button>
     </div>
     <div class="grid" id="photoGrid"></div>
     <div class="empty" id="emptyTip">选中左侧项目查看照片;也可以先把照片拖进空项目</div>
@@ -165,12 +256,138 @@
   </div>
 </div>
 
+<!-- 照片信息编辑弹窗 -->
+<div class="mask" id="maskEdit">
+  <div class="modal" style="width:560px">
+    <h3 id="editTitle">编辑照片信息</h3>
+    <div class="field"><label>标题(留空则显示文件名)</label><input id="e-title" /></div>
+    <div class="field"><label>图片描述 / Alt 文本(给搜索引擎和读屏软件看,SEO 用)</label><input id="e-alt" /></div>
+    <div class="field"><label>拍摄地点</label><input id="e-loc" placeholder="如:山西 · 平遥" /></div>
+    <div class="field"><label>拍摄时间(显示在照片资料里)</label><input id="e-date" placeholder="2025.03" /></div>
+    <div class="field"><label>标签(英文逗号分隔)</label><input id="e-tags" placeholder="古建筑, 山西" /></div>
+    <div id="e-exifWrap">
+      <div class="sect">拍摄参数(上传时已自动读 EXIF,可手动修正;留空即删掉该项)</div>
+      <div class="field"><label>相机</label><input id="e-camera" placeholder="NIKON Z 5" /></div>
+      <div style="display:flex;gap:10px">
+        <div class="field" style="flex:1"><label>镜头</label><input id="e-lens" placeholder="NIKKOR Z 24-70mm f/4 S" /></div>
+        <div class="field" style="width:110px"><label>焦距</label><input id="e-focal" placeholder="63mm" /></div>
+      </div>
+      <div style="display:flex;gap:10px">
+        <div class="field" style="flex:1"><label>光圈</label><input id="e-aperture" placeholder="f/4" /></div>
+        <div class="field" style="flex:1"><label>快门</label><input id="e-shutter" placeholder="1/125" /></div>
+        <div class="field" style="flex:1"><label>ISO</label><input id="e-iso" placeholder="400" /></div>
+      </div>
+      <label class="chk" style="margin-top:4px">
+        <input type="checkbox" id="e-showexif" />
+        在灯箱里显示这些拍摄参数(不勾选则只显示照片本身)
+      </label>
+    </div>
+    <div class="actions">
+      <button class="btn ghost" id="e-cancel">取消</button>
+      <button class="btn primary" id="e-save">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 项目设置弹窗 -->
+<div class="mask" id="maskProj">
+  <div class="modal" style="width:540px">
+    <h3>项目设置</h3>
+    <div class="field"><label>项目名称 *</label><input id="p-title" /></div>
+    <div class="field"><label>项目简介</label><input id="p-desc" /></div>
+    <div style="display:flex;gap:10px">
+      <div class="field" style="flex:1"><label>拍摄时间</label><input id="p-date" /></div>
+      <div class="field" style="flex:1"><label>拍摄地点</label><input id="p-loc" /></div>
+    </div>
+    <div class="field">
+      <label>项目封面(下拉选当前项目的照片,也可手输文件名)</label>
+      <input id="p-cover" list="p-cover-list" placeholder="DSC_1234.jpg" />
+      <datalist id="p-cover-list"></datalist>
+    </div>
+    <div class="field">
+      <label>可见性</label>
+      <select id="p-vis">
+        <option value="public">公开 —— 正常出现在项目列表与首页</option>
+        <option value="private">私密 —— 线上不显示,直链也打不开</option>
+        <option value="draft">草稿 —— 同私密,标记为未完成</option>
+      </select>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <button class="btn danger" id="p-del">删除整个项目</button>
+      <span style="margin-left:auto;display:flex;gap:8px">
+        <button class="btn ghost" id="p-cancel">取消</button>
+        <button class="btn primary" id="p-save">保存</button>
+      </span>
+    </div>
+  </div>
+</div>
+
+<!-- 批量编辑弹窗 -->
+<div class="mask" id="maskBatch">
+  <div class="modal" style="width:480px">
+    <h3>批量编辑 <span id="b-n" style="font-weight:400;color:var(--mist)"></span></h3>
+    <div class="sect">留空的字段不改动;要清空请勾选对应的「清空」</div>
+    <div class="field"><label>标签(英文逗号分隔,整体覆盖)</label><input id="b-tags" placeholder="古建筑, 山西" /></div>
+    <label class="chk"><input type="checkbox" id="b-tags-clear" /> 清空这些照片的标签</label>
+    <div class="field"><label>拍摄地点(整体覆盖)</label><input id="b-loc" /></div>
+    <label class="chk"><input type="checkbox" id="b-loc-clear" /> 清空拍摄地点</label>
+    <div class="field">
+      <label>灯箱里的拍摄参数</label>
+      <select id="b-showexif" class="btn ghost" style="width:100%;text-align:left">
+        <option value="">不修改</option>
+        <option value="1">打开(放大看图时显示相机 · 镜头 · 焦距 · 光圈 · 快门 · ISO)</option>
+        <option value="0">关闭(只显示照片与标题)</option>
+      </select>
+    </div>
+    <div class="actions">
+      <button class="btn ghost" id="b-cancel">取消</button>
+      <button class="btn primary" id="b-save">应用</button>
+    </div>
+  </div>
+</div>
+
+<!-- 全局设置弹窗 -->
+<div class="mask" id="maskSite">
+  <div class="modal" style="width:600px">
+    <h3>全局设置</h3>
+    <div class="sect">站点信息(留空 = 用代码里的默认值;保存后要推送上线才生效)</div>
+    <div class="field"><label>网站标题</label><input id="s-title" /></div>
+    <div class="field"><label>网站描述(SEO 与分享卡片)</label><input id="s-desc" /></div>
+    <div class="field"><label>Logo 图片地址(留空则只显示站名文字)</label><input id="s-logo" /></div>
+    <div class="field"><label>页脚文字</label><input id="s-footer" /></div>
+    <div class="field"><label>备案号(留空则不显示备案行)</label><input id="s-icp" /></div>
+    <div style="display:flex;gap:10px">
+      <div class="field" style="flex:1"><label>小红书链接</label><input id="s-xhs" /></div>
+      <div class="field" style="flex:1"><label>Instagram 链接</label><input id="s-ig" /></div>
+    </div>
+    <div class="field"><label>联系邮箱</label><input id="s-mail" /></div>
+    <div class="sect">上传配置(只影响这台电脑的后台,不进仓库)</div>
+    <label class="chk"><input type="checkbox" id="s-compress" /> 超过阈值自动压缩后上传</label>
+    <div class="field" style="width:220px"><label>压缩阈值(MB)</label><input id="s-threshold" type="number" min="1" step="1" /></div>
+    <label class="chk"><input type="checkbox" id="s-webp" /> 上传时额外转 WebP(Cloudinary 交付时已自动转,通常不必开)</label>
+    <div class="actions">
+      <button class="btn ghost" id="s-cancel">取消</button>
+      <button class="btn primary" id="s-save">保存</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <script>
 // 后台管理前端(纯原生 JS,配合 scripts/admin-server.mjs)
 (function () {
-  var state = { projects: [], photos: [], featured: [], current: null, selected: new Set(), cloudName: "" };
+  var state = {
+    projects: [], photos: [], featured: [], trash: [],
+    current: null,           // 项目 id / "__hero__" / "__trash__"
+    selected: new Set(),
+    lastSelId: null,         // Shift 连选的锚点
+    view: "grid",            // grid | list
+    query: "",               // 当前项目内的搜索词
+    cloudName: "",
+    settings: null,          // 上传配置(admin/settings.json)
+    git: null,               // { changes, lastCommit }
+  };
   var $ = function (id) { return document.getElementById(id); };
 
   function toast(msg) {
@@ -192,18 +409,49 @@
       fetch("/api/projects").then(function (r) { return r.json(); }),
       fetch("/api/photos").then(function (r) { return r.json(); }),
       fetch("/api/featured").then(function (r) { return r.json(); }),
+      fetch("/api/trash").then(function (r) { return r.json(); }).catch(function () { return []; }),
+      fetch("/api/git-status").then(function (r) { return r.json(); }).catch(function () { return null; }),
     ]).then(function (rs) {
       state.cloudName = rs[0].cloudName;
       state.projects = rs[1];
       state.photos = rs[2];
       state.featured = rs[3];
-      if (state.current !== "__hero__" && state.current &&
+      state.trash = rs[4] || [];
+      state.git = rs[5];
+      var special = state.current === "__hero__" || state.current === "__trash__";
+      if (!special && state.current &&
         !state.projects.some(function (p) { return p.id === state.current; })) {
         state.current = null;
       }
       state.selected.clear();
+      state.lastSelId = null;
       render();
+      renderGitChip();
     }).catch(function (e) { toast("加载失败:" + e.message); });
+  }
+
+  // 头部 Git 状态:未提交更改数 + 上次提交时间,点击直达推送弹窗
+  function renderGitChip() {
+    var el = $("gitChip");
+    var g = state.git;
+    if (!g) { el.textContent = ""; return; }
+    var n = g.changes || 0;
+    var when = g.lastCommit && g.lastCommit.date ? relTime(g.lastCommit.date) : "还没提交过";
+    el.innerHTML = n > 0
+      ? '<b>' + n + '</b> 项更改待推送 · 上次推送 ' + esc(when)
+      : '无未推送改动 · 上次推送 ' + esc(when);
+    el.classList.toggle("dirty", n > 0);
+    el.title = n > 0 ? "点击推送上线" : "点击查看推送";
+  }
+
+  function relTime(iso) {
+    var t = new Date(iso.replace(" ", "T")).getTime();
+    if (isNaN(t)) return iso;
+    var d = Math.floor((Date.now() - t) / 1000);
+    if (d < 60) return "刚刚";
+    if (d < 3600) return Math.floor(d / 60) + " 分钟前";
+    if (d < 86400) return Math.floor(d / 3600) + " 小时前";
+    return Math.floor(d / 86400) + " 天前";
   }
 
   function photosOf(pid) {
@@ -216,7 +464,32 @@
   }
 
   function render() {
-    // 项目列表(顶部固定一张「首页 Hero 轮播」卡片,拖照片进去即上首页)
+    renderSidebar();
+    renderMain();
+    renderSelbar();
+  }
+
+  // 通用「照片放置区」:拖照片到元素上 = 移动/加入。
+  // 只接管带 text/plain 的拖拽(排序手柄用的是 x-reorder),两者互不干扰。
+  function bindDrop(el, cb) {
+    el.addEventListener("dragover", function (e) {
+      if (!e.dataTransfer.types.includes("text/plain")) return;
+      e.preventDefault();
+      el.classList.add("dragover");
+    });
+    el.addEventListener("dragleave", function () { el.classList.remove("dragover"); });
+    el.addEventListener("drop", function (e) {
+      if (!e.dataTransfer.types.includes("text/plain")) return;
+      e.preventDefault();
+      el.classList.remove("dragover");
+      var ids = JSON.parse(e.dataTransfer.getData("text/plain") || "[]");
+      if (ids.length) cb(ids);
+    });
+  }
+
+  // ---------- 左侧:项目列表 ----------
+  function renderSidebar() {
+    // 顶部固定一张「首页 Hero 轮播」卡片,拖照片进去即上首页
     $("projTotal").textContent = state.projects.length;
     var list = $("projList");
     list.innerHTML = "";
@@ -233,25 +506,22 @@
       }
       state.current = "__hero__";
       state.selected.clear();
+      state.query = "";
       render();
     });
-    heroDiv.addEventListener("dragover", function (e) {
-      e.preventDefault();
-      heroDiv.classList.add("dragover");
-    });
-    heroDiv.addEventListener("dragleave", function () { heroDiv.classList.remove("dragover"); });
-    heroDiv.addEventListener("drop", function (e) {
-      e.preventDefault();
-      heroDiv.classList.remove("dragover");
-      var ids = JSON.parse(e.dataTransfer.getData("text/plain") || "[]");
-      if (ids.length) addHero(ids);
-    });
+    bindDrop(heroDiv, function (ids) { addHero(ids); });
     list.appendChild(heroDiv);
-    state.projects.forEach(function (p) {
+    state.projects.forEach(function (p, idx) {
+      var vis = p.visibility || "public";
       var div = document.createElement("div");
-      div.className = "proj" + (p.id === state.current ? " active" : "");
+      div.className = "proj" + (p.id === state.current ? " active" : "") +
+        (vis === "private" ? " is-private" : vis === "draft" ? " is-draft" : "");
       div.innerHTML =
+        '<span class="handle" draggable="true" title="拖拽调整项目顺序">⋮⋮</span>' +
         '<span class="name">' + esc(p.title || p.id) + "</span>" +
+        (vis === "public"
+          ? ""
+          : '<span class="vis ' + vis + '">' + (vis === "private" ? "私密" : "草稿") + "</span>") +
         '<span class="count">' + p.count + " 张</span>" +
         '<button class="del" title="删除项目">✕</button>';
       div.querySelector(".del").addEventListener("click", function (e) {
@@ -276,127 +546,492 @@
         } else {
           state.current = p.id;
           state.selected.clear();
+          state.query = "";
           render();
         }
       });
-      div.addEventListener("dragover", function (e) {
-        e.preventDefault();
-        div.classList.add("dragover");
-      });
-      div.addEventListener("dragleave", function () { div.classList.remove("dragover"); });
-      div.addEventListener("drop", function (e) {
-        e.preventDefault();
-        div.classList.remove("dragover");
-        var ids = JSON.parse(e.dataTransfer.getData("text/plain") || "[]");
-        if (ids.length) move(ids, p.id);
-      });
+      bindDrop(div, function (ids) { move(ids, p.id); });
+      bindReorder(div.querySelector(".handle"), div, "project", idx);
       list.appendChild(div);
     });
 
-    // 照片网格
-    var isHeroView = state.current === "__hero__";
-    var cur = state.projects.find(function (p) { return p.id === state.current; });
-    if (isHeroView) {
-      $("curTitle").textContent = "首页 Hero 轮播";
-      $("curInfo").textContent = "拖照片到左侧该卡片即加入;悬停 ✕ 移出(不影响项目里的照片)";
-    } else {
-      $("curTitle").textContent = cur ? (cur.title || cur.id) : "请选择项目";
-      $("curInfo").textContent = cur ? (cur.date || "") + (cur.location ? " · " + cur.location : "") : "左侧点击选择";
-    }
+    // 底部固定条目:回收站
+    var tr = document.createElement("div");
+    tr.className = "proj" + (state.current === "__trash__" ? " active" : "");
+    tr.innerHTML =
+      '<span class="name">🗑 回收站</span>' +
+      '<span class="count">' + state.trash.length + " 张</span>";
+    tr.title = "删除的照片先放这里,可恢复或彻底删除";
+    tr.addEventListener("click", function () {
+      state.current = "__trash__";
+      state.selected.clear();
+      state.query = "";
+      render();
+    });
+    list.appendChild(tr);
+  }
+
+  // ---------- 右侧主区:仪表盘 / 项目照片 / Hero 轮播 / 回收站 ----------
+  function renderMain() {
     var grid = $("photoGrid");
+    var tip = $("emptyTip");
+    var cur = state.projects.find(function (p) { return p.id === state.current; });
+    var isHero = state.current === "__hero__";
+    var isTrash = state.current === "__trash__";
+
+    $("projSettings").style.display = cur ? "" : "none";
+    $("searchBox").style.display = cur || isHero ? "" : "none";
+    $("viewToggle").style.display = cur || isHero ? "" : "none";
+    // 只在外部改动过 query 时才回写,否则打字时每次 render 光标都会跳到末尾
+    if ($("searchBox").value !== state.query) $("searchBox").value = state.query;
+    tip.style.display = "none";
     grid.innerHTML = "";
-    $("emptyTip").style.display = cur || isHeroView ? "none" : "";
-    if (!cur && !isHeroView) { renderSelbar(); return; }
-    var list2 = photosOf(state.current);
-    if (!list2.length) {
-      $("emptyTip").style.display = "";
-      $("emptyTip").textContent = isHeroView
-        ? "还没有 Hero 图 —— 在任意项目选中照片,拖到左侧「🏠 首页 Hero 轮播」卡片即可加入"
-        : "该项目还没有照片 —— 去左侧其他项目选中照片拖过来,或用「添加照片」上传";
+    grid.className = "grid";
+
+    if (isTrash) {
+      $("curTitle").textContent = "回收站";
+      $("curInfo").textContent = "恢复会还原全部标记(含精选);彻底删除会连云端原图一起删,不可恢复";
+      renderTrash();
+      return;
     }
-    list2.forEach(function (p) {
-      var isHeroItem = !!p.isHero;
-      var isCover = !isHeroItem && cur && p.filename === cur.coverImage;
-      var div = document.createElement("div");
-      div.className = "ph" + (!isHeroItem && state.selected.has(p.id) ? " sel" : "");
-      div.draggable = !isHeroItem;
-      var acts =
-        (isHeroItem
-          ? ""
-          : '<button class="act star" title="设为精选(上首页 12 张精选墙)">★</button>' +
-            '<button class="act cover" title="设为「' + esc(cur ? cur.title : "") + '」项目封面">▣</button>') +
-        '<button class="act del" title="' +
-        (isHeroItem ? "移出首页 Hero 轮播" : "删除照片(含云端图片)") +
-        '">✕</button>';
-      div.innerHTML =
-        '<img loading="lazy" src="' + thumb(p.filename) + '" alt="" />' +
-        '<span class="tag">' + esc(p.title || p.id) + "</span>" +
-        '<div style="position:absolute;top:4px;left:4px;display:flex;flex-direction:column;gap:4px">' +
-        (p.featured ? '<span class="badge">精选</span>' : "") +
-        (isCover ? '<span class="badge">封面</span>' : "") +
-        "</div>" +
-        '<div class="acts">' + acts + "</div>";
-      div.querySelector(".del").addEventListener("click", function (e) {
-        e.stopPropagation();
-        if (isHeroItem) {
-          if (!confirm("把「" + (p.title || p.filename) + "」移出首页 Hero 轮播?")) return;
-          fetch("/api/featured", {
-            method: "DELETE",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ ids: [p.id] }),
-          }).then(function () { toast("已移出首页 Hero"); load(); })
-            .catch(function (e2) { toast("操作失败:" + e2.message); });
-          return;
-        }
-        if (!confirm("确定删除照片「" + (p.title || p.id) + "」?\n将同时从 Cloudinary 删除云端图片,不可恢复。")) return;
-        delPhotos([p.id]);
+    if (!cur && !isHero) {
+      $("curTitle").textContent = "仪表盘";
+      $("curInfo").textContent = "左侧选中项目即可管理照片";
+      renderDashboard();
+      return;
+    }
+
+    if (isHero) {
+      $("curTitle").textContent = "首页 Hero 轮播";
+      $("curInfo").textContent = "拖照片到左侧该卡片即加入;手柄 ⋮⋮ 调整轮播顺序;悬停 ✕ 移出";
+    } else {
+      $("curTitle").textContent = cur.title || cur.id;
+      $("curInfo").textContent = [cur.date || "", cur.location || ""].filter(Boolean).join(" · ");
+    }
+
+    var items = photosOf(state.current);
+    var q = state.query.trim().toLowerCase();
+    if (q) {
+      items = items.filter(function (p) {
+        return [p.title, p.id, p.filename].some(function (v) {
+          return String(v || "").toLowerCase().indexOf(q) >= 0;
+        });
       });
-      if (!isHeroItem) {
-        div.querySelector(".star").addEventListener("click", function (e) {
-          e.stopPropagation();
-          fetch("/api/featured-flag", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ ids: [p.id], value: !p.featured }),
-          }).then(function () { toast(p.featured ? "已取消精选" : "已设为精选(上首页精选墙)"); load(); })
-            .catch(function (e2) { toast("操作失败:" + e2.message); });
-        });
-        div.querySelector(".cover").addEventListener("click", function (e) {
-          e.stopPropagation();
-          fetch("/api/project-cover", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ projectId: state.current, filename: p.filename }),
-          }).then(function (r) { return r.json(); }).then(function (res) {
-            toast(res.error ? "设置失败:" + res.error : "已设为「" + (cur ? cur.title : "") + "」封面");
-            load();
-          }).catch(function (e2) { toast("操作失败:" + e2.message); });
-        });
-        div.addEventListener("click", function () {
-          if (state.selected.has(p.id)) state.selected.delete(p.id);
-          else state.selected.add(p.id);
-          div.classList.toggle("sel");
-          renderSelbar();
-        });
-        div.addEventListener("dragstart", function (e) {
-          if (!state.selected.has(p.id)) { // 拖动未选中的图 = 只拖这一张
-            state.selected.clear();
-            state.selected.add(p.id);
-            render();
-          }
-          e.dataTransfer.setData("text/plain", JSON.stringify(Array.from(state.selected)));
-          div.classList.add("dragging");
-        });
-        div.addEventListener("dragend", function () { div.classList.remove("dragging"); });
+    }
+    if (!items.length) {
+      tip.style.display = "";
+      tip.textContent = q
+        ? "没有匹配「" + state.query + "」的照片"
+        : isHero
+          ? "还没有 Hero 图 —— 在任意项目选中照片,拖到左侧「🏠 首页 Hero 轮播」卡片即可加入"
+          : "该项目还没有照片 —— 去左侧其他项目选中照片拖过来,或用「添加照片」上传";
+      return;
+    }
+    if (state.view === "list") grid.className = "list";
+    // 搜索过滤时禁用排序:可见顺序与真实顺序不一致,拖拽结果会反直觉
+    items.forEach(function (p, i) {
+      grid.appendChild(
+        state.view === "list" ? listRow(p, cur, i, !q) : photoTile(p, cur, i, !q),
+      );
+    });
+  }
+
+  // 网格瓦片
+  function photoTile(p, cur, idx, canReorder) {
+    var isHeroItem = !!p.isHero;
+    var isCover = !isHeroItem && cur && p.filename === cur.coverImage;
+    var div = document.createElement("div");
+    div.className = "ph" + (!isHeroItem && state.selected.has(p.id) ? " sel" : "");
+    div.draggable = !isHeroItem; // Hero 条目整体拖拽无意义,只能用手柄排序
+    var acts =
+      '<button class="act edit" title="编辑信息(标题/描述/拍摄参数/地点/标签)">✎</button>' +
+      (isHeroItem
+        ? ""
+        : '<button class="act star" title="设为精选(上首页 12 张精选墙)">★</button>' +
+          '<button class="act cover" title="设为「' + esc(cur ? cur.title : "") + '」项目封面">▣</button>') +
+      '<button class="act dl" title="下载原图">⬇</button>' +
+      '<button class="act del" title="' +
+      (isHeroItem ? "移出首页 Hero 轮播" : "移入回收站") +
+      '">✕</button>';
+    div.innerHTML =
+      (canReorder ? '<span class="handle" draggable="true" title="拖拽调整展示顺序">⋮⋮</span>' : "") +
+      '<img loading="lazy" src="' + thumb(p.filename) + '" alt="' + esc(p.alt || "") + '" />' +
+      '<span class="tag">' + esc(p.title || p.id) + "</span>" +
+      '<div style="position:absolute;top:4px;left:30px;display:flex;flex-direction:column;gap:4px;align-items:flex-start">' +
+      (p.featured ? '<span class="badge">精选</span>' : "") +
+      (isCover ? '<span class="badge">封面</span>' : "") +
+      "</div>" +
+      '<div class="acts">' + acts + "</div>";
+
+    div.querySelector(".edit").addEventListener("click", function (e) {
+      e.stopPropagation();
+      openEdit(p, isHeroItem ? "featured" : "photos");
+    });
+    div.querySelector(".dl").addEventListener("click", function (e) {
+      e.stopPropagation();
+      downloadOriginal(p.filename);
+    });
+    div.querySelector(".del").addEventListener("click", function (e) {
+      e.stopPropagation();
+      if (isHeroItem) {
+        if (!confirm("把「" + (p.title || p.filename) + "」移出首页 Hero 轮播?\n(不影响项目里的照片)")) return;
+        fetch("/api/featured", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ids: [p.id] }),
+        }).then(function () { toast("已移出首页 Hero"); load(); })
+          .catch(function (e2) { toast("操作失败:" + e2.message); });
+        return;
       }
+      if (!confirm("把照片「" + (p.title || p.id) + "」移入回收站?\n可在回收站恢复;彻底删除时才清理云端原图。")) return;
+      delPhotos([p.id]);
+    });
+
+    if (!isHeroItem) {
+      div.querySelector(".star").addEventListener("click", function (e) {
+        e.stopPropagation();
+        fetch("/api/featured-flag", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ids: [p.id], value: !p.featured }),
+        }).then(function () { toast(p.featured ? "已取消精选" : "已设为精选(上首页精选墙)"); load(); })
+          .catch(function (e2) { toast("操作失败:" + e2.message); });
+      });
+      div.querySelector(".cover").addEventListener("click", function (e) {
+        e.stopPropagation();
+        fetch("/api/project-cover", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ projectId: state.current, filename: p.filename }),
+        }).then(function (r) { return r.json(); }).then(function (res) {
+          toast(res.error ? "设置失败:" + res.error : "已设为「" + (cur ? cur.title : "") + "」封面");
+          load();
+        }).catch(function (e2) { toast("操作失败:" + e2.message); });
+      });
+      div.addEventListener("click", function (e) { onPick(p.id, idx, e); });
+      // 整体拖拽 = 移动到别的项目(与手柄排序互不干扰)
+      div.addEventListener("dragstart", function (e) {
+        if (!state.selected.has(p.id)) { // 拖动未选中的图 = 只拖这一张
+          state.selected.clear();
+          state.selected.add(p.id);
+        }
+        e.dataTransfer.setData("text/plain", JSON.stringify(Array.from(state.selected)));
+        div.classList.add("dragging");
+      });
+      div.addEventListener("dragend", function () { div.classList.remove("dragging"); });
+    }
+    if (canReorder) {
+      var h = div.querySelector(".handle");
+      // 手柄的 dragstart 要压过瓦片自身的(瓦片只设 text/plain,手柄只设 x-reorder)
+      h.addEventListener("dragstart", function () { div.draggable = false; });
+      h.addEventListener("dragend", function () { div.draggable = !isHeroItem; });
+      bindReorder(h, div, isHeroItem ? "hero" : "photo", idx);
+    }
+    return div;
+  }
+
+  // 列表视图行:一眼看到大小/尺寸/上传时间
+  function listRow(p, cur, idx, canReorder) {
+    var isHeroItem = !!p.isHero;
+    var isCover = !isHeroItem && cur && p.filename === cur.coverImage;
+    var div = document.createElement("div");
+    div.className = "row" + (!isHeroItem && state.selected.has(p.id) ? " sel" : "");
+    div.draggable = !isHeroItem;
+    var size = typeof p.bytes === "number" ? fmtSize(p.bytes) : "—";
+    var dim = p.width && p.height ? p.width + "×" + p.height : "—";
+    var up = p.uploadedAt ? String(p.uploadedAt).slice(0, 10) : "—";
+    div.innerHTML =
+      '<img loading="lazy" src="' + thumb(p.filename) + '" alt="" />' +
+      '<span class="t">' + esc(p.title || p.id) +
+      (p.featured ? ' <span class="badge">精选</span>' : "") +
+      (isCover ? ' <span class="badge">封面</span>' : "") + "</span>" +
+      '<span class="f">' + esc(p.filename || "") + "</span>" +
+      '<span class="d">' + esc(dim) + "</span>" +
+      '<span class="n">' + esc(size) + "</span>" +
+      '<span class="d">' + esc(up) + "</span>" +
+      '<span class="acts">' +
+      '<button class="act edit" title="编辑信息">✎</button>' +
+      '<button class="act dl" title="下载原图">⬇</button>' +
+      '<button class="act del" title="' + (isHeroItem ? "移出 Hero 轮播" : "移入回收站") + '">✕</button>' +
+      "</span>";
+    div.querySelector(".edit").addEventListener("click", function (e) {
+      e.stopPropagation();
+      openEdit(p, isHeroItem ? "featured" : "photos");
+    });
+    div.querySelector(".dl").addEventListener("click", function (e) {
+      e.stopPropagation();
+      downloadOriginal(p.filename);
+    });
+    div.querySelector(".del").addEventListener("click", function (e) {
+      e.stopPropagation();
+      if (isHeroItem) {
+        if (!confirm("把「" + (p.title || p.filename) + "」移出首页 Hero 轮播?")) return;
+        fetch("/api/featured", {
+          method: "DELETE", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ids: [p.id] }),
+        }).then(function () { toast("已移出首页 Hero"); load(); });
+        return;
+      }
+      if (!confirm("把照片「" + (p.title || p.id) + "」移入回收站?")) return;
+      delPhotos([p.id]);
+    });
+    if (!isHeroItem) {
+      div.addEventListener("click", function (e) { onPick(p.id, idx, e); });
+      div.addEventListener("dragstart", function (e) {
+        if (!state.selected.has(p.id)) { state.selected.clear(); state.selected.add(p.id); }
+        e.dataTransfer.setData("text/plain", JSON.stringify(Array.from(state.selected)));
+      });
+    }
+    return div;
+  }
+
+  // 单击 = 单选替换;Ctrl/Cmd+单击 = 加减选;Shift+单击 = 从锚点连选
+  function onPick(id, idx, e) {
+    var items = photosOf(state.current);
+    if (e.shiftKey && state.lastSelId) {
+      var a = items.findIndex(function (x) { return x.id === state.lastSelId; });
+      var b = idx;
+      if (a >= 0) {
+        state.selected.clear();
+        for (var i = Math.min(a, b); i <= Math.max(a, b); i++) state.selected.add(items[i].id);
+      }
+    } else if (e.ctrlKey || e.metaKey) {
+      if (state.selected.has(id)) state.selected.delete(id);
+      else state.selected.add(id);
+      state.lastSelId = id;
+    } else {
+      state.selected.clear();
+      state.selected.add(id);
+      state.lastSelId = id;
+    }
+    render();
+  }
+
+  // 下载原图:交给 Cloudinary 的 fl_attachment 触发另存为
+  function downloadOriginal(filename) {
+    if (!filename) { toast("这张没有文件名,无法下载"); return; }
+    var id = String(filename).replace(/\.[^.]+$/, "");
+    window.open(
+      "https://res.cloudinary.com/" + state.cloudName + "/image/upload/fl_attachment/photos/" + id,
+      "_blank",
+    );
+  }
+
+  // ---------- 回收站视图 ----------
+  function renderTrash() {
+    var grid = $("photoGrid");
+    var tip = $("emptyTip");
+    if (!state.trash.length) {
+      tip.style.display = "";
+      tip.textContent = "回收站是空的";
+      return;
+    }
+    grid.className = "trash";
+    state.trash.forEach(function (t) {
+      var div = document.createElement("div");
+      div.className = "trash-row";
+      div.innerHTML =
+        '<img loading="lazy" src="' + thumb(t.filename) + '" alt="" />' +
+        '<div class="meta"><b>' + esc(t.title || t.id) + "</b><span>" +
+        esc(t.filename || "") +
+        (t.project ? " · 原属 " + esc(projectName(t.project)) : "") +
+        (t.featured ? " · 曾是精选" : "") +
+        (t.deletedAt ? " · " + esc(relTime(t.deletedAt)) + "删除" : "") +
+        "</span></div>" +
+        '<button class="btn ghost restore">恢复</button>' +
+        '<button class="btn danger purge">彻底删除</button>';
+      div.querySelector(".restore").addEventListener("click", function () {
+        fetch("/api/trash-restore", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ids: [t.id] }),
+        }).then(function (r) { return r.json(); }).then(function (res) {
+          var one = (res.results || [])[0] || {};
+          if (!one.ok) { toast("恢复失败:" + (one.error || "未知错误")); return; }
+          toast("已恢复「" + (t.title || t.id) + "」——「恢复一切标记」,含精选");
+          load();
+        }).catch(function (e) { toast("恢复失败:" + e.message); });
+      });
+      div.querySelector(".purge").addEventListener("click", function () {
+        if (!confirm("彻底删除「" + (t.title || t.id) + "」?\n将同时从 Cloudinary 删除云端原图,不可恢复。")) return;
+        fetch("/api/trash", {
+          method: "DELETE", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ files: [t.file], destroy: true }),
+        }).then(function (r) { return r.json(); }).then(function (res) {
+          var one = (res.results || [])[0] || {};
+          toast(one.removed ? "已彻底删除(云端 " + (one.cloud === "ok" ? "已清理" : one.cloud) + ")" : "删除失败");
+          load();
+        }).catch(function (e) { toast("删除失败:" + e.message); });
+      });
       grid.appendChild(div);
     });
-    renderSelbar();
+  }
+
+  function projectName(id) {
+    var p = state.projects.find(function (x) { return x.id === id; });
+    return p ? (p.title || p.id) : id;
+  }
+
+  // ---------- 仪表盘(未选中项目时) ----------
+  function renderDashboard() {
+    var grid = $("photoGrid");
+    grid.className = "stats";
+    var heroN = state.featured.length;
+    var featuredN = state.photos.filter(function (p) { return p.featured; }).length;
+    var last = state.git && state.git.lastCommit && state.git.lastCommit.date
+      ? relTime(state.git.lastCommit.date) : "—";
+    var stats = [
+      ["项目", state.projects.length + " 个"],
+      ["照片", state.photos.length + " 张"],
+      ["首页 Hero", heroN + " 张"],
+      ["精选标记", featuredN + " 张"],
+      ["回收站", state.trash.length + " 张"],
+      ["未推送改动", (state.git ? state.git.changes : 0) + " 项"],
+      ["最近推送", last],
+    ];
+    stats.forEach(function (s) {
+      var d = document.createElement("div");
+      d.className = "stat";
+      d.innerHTML = '<div class="k">' + s[0] + '</div><div class="v">' + esc(String(s[1])) + "</div>";
+      grid.appendChild(d);
+    });
+    // 云端用量是异步取的(要调 Cloudinary API),先占位再填
+    var cloud = document.createElement("div");
+    cloud.className = "stat";
+    cloud.innerHTML = '<div class="k">Cloudinary 存储</div><div class="v" id="cloudUsage">…</div>';
+    grid.appendChild(cloud);
+    var local = document.createElement("div");
+    local.className = "stat";
+    local.innerHTML = '<div class="k">本地图片占用</div><div class="v" id="localUsage">…</div>';
+    grid.appendChild(local);
+
+    fetch("/api/dashboard").then(function (r) { return r.json(); }).then(function (d) {
+      var el = $("cloudUsage");
+      if (el) {
+        el.innerHTML = d.cloudBytes
+          ? fmtSize(d.cloudBytes) + ' <small>' + (d.cloudCredits != null ? d.cloudCredits + "% 额度" : "") + "</small>"
+          : '<small>取不到(检查 Cloudinary 配置)</small>';
+      }
+      var l = $("localUsage");
+      if (l) l.innerHTML = fmtSize(d.localBytes || 0) + " <small>仓库内图片</small>";
+    }).catch(function () {
+      var el = $("cloudUsage");
+      if (el) el.textContent = "—";
+    });
+  }
+
+  // ---------- 拖拽排序 ----------
+  var dragCtx = null; // { kind, index }
+
+  function bindReorder(handle, el, kind, index) {
+    if (!handle) return;
+    handle.addEventListener("dragstart", function (e) {
+      dragCtx = { kind: kind, index: index };
+      e.dataTransfer.effectAllowed = "move";
+      // 自定义类型:排序拖拽与「拖到项目里移动照片」靠类型区分,互不误触
+      e.dataTransfer.setData("application/x-reorder", String(index));
+      el.classList.add("dragging");
+      e.stopPropagation();
+    });
+    var clearMarks = function () {
+      document.querySelectorAll(".drop-before,.drop-after").forEach(function (n) {
+        n.classList.remove("drop-before", "drop-after");
+      });
+    };
+    handle.addEventListener("dragend", function () {
+      dragCtx = null;
+      el.classList.remove("dragging");
+      clearMarks();
+    });
+    el.addEventListener("dragover", function (e) {
+      if (!dragCtx || dragCtx.kind !== kind) return;
+      e.preventDefault();
+      e.stopPropagation();
+      var r = el.getBoundingClientRect();
+      // 列表是竖排、网格是横排:按对应轴判断插到前还是后
+      var after = el.closest(".list, .proj, #projList")
+        ? e.clientY > r.top + r.height / 2
+        : e.clientX > r.left + r.width / 2;
+      el.classList.toggle("drop-after", after);
+      el.classList.toggle("drop-before", !after);
+    });
+    el.addEventListener("dragleave", function () {
+      el.classList.remove("drop-before", "drop-after");
+    });
+    el.addEventListener("drop", function (e) {
+      if (!dragCtx || dragCtx.kind !== kind) return;
+      e.preventDefault();
+      e.stopPropagation();
+      var after = el.classList.contains("drop-after");
+      var from = dragCtx.index;
+      clearMarks();
+      dragCtx = null;
+      el.classList.remove("dragging");
+      reorder(kind, from, index, after);
+    });
+  }
+
+  function reorder(kind, from, to, after) {
+    var arr =
+      kind === "project" ? state.projects.map(function (p) { return p.id; }) :
+      kind === "hero" ? state.featured.map(function (f) { return f.id; }) :
+      photosOf(state.current).map(function (p) { return p.id; });
+    if (from === to) return;
+    var moved = arr.splice(from, 1)[0];
+    if (moved === undefined) return;
+    // 移除后目标索引会前移一位
+    var t2 = to > from ? to - 1 : to;
+    arr.splice(after ? t2 + 1 : t2, 0, moved);
+
+    var url =
+      kind === "project" ? "/api/project-order" :
+      kind === "hero" ? "/api/featured-order" : "/api/photo-order";
+    var payload =
+      kind === "photo" ? { projectId: state.current, orderedIds: arr } : { orderedIds: arr };
+
+    fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }).then(function (r) { return r.json(); }).then(function (res) {
+      if (res.error) { toast("排序失败:" + res.error); load(); return; }
+      applyOrder(kind, arr);
+      toast("顺序已更新(推送后线上生效)");
+    }).catch(function (e) { toast("排序失败:" + e.message); load(); });
+  }
+
+  // 本地先按新顺序重排,避免整页刷新闪烁;随后 load() 与磁盘对齐
+  function applyOrder(kind, ids) {
+    var pos = {};
+    ids.forEach(function (id, i) { pos[id] = i; });
+    var list = kind === "project" ? state.projects : kind === "hero" ? state.featured : state.photos;
+    list.sort(function (a, b) {
+      var pa = pos[a.id] === undefined ? Infinity : pos[a.id];
+      var pb = pos[b.id] === undefined ? Infinity : pos[b.id];
+      return pa - pb;
+    });
+    render();
   }
 
   function renderSelbar() {
     $("selbar").classList.toggle("show", state.selected.size > 0);
     $("selCount").textContent = "已选 " + state.selected.size + " 张";
+    // 「移动到…」下拉:列出除当前项目外的所有项目
+    var sel = $("selMove");
+    var keep = sel.value;
+    sel.innerHTML = '<option value="">移动到…</option>';
+    state.projects.filter(function (p) { return p.id !== state.current; })
+      .forEach(function (p) {
+        var o = document.createElement("option");
+        o.value = p.id;
+        o.textContent = "→ " + (p.title || p.id);
+        sel.appendChild(o);
+      });
+    // Hero / 回收站里的选中项仍可移动,所以这里不禁用
+    sel.value = keep;
+    // Hero 条目没有「精选」概念(它本身就是精选),这两个按钮在 Hero 视图下没意义
+    var isHeroView = state.current === "__hero__";
+    $("selFeatured").style.display = isHeroView ? "none" : "";
+    $("selUnfeatured").style.display = isHeroView ? "none" : "";
   }
 
   function move(ids, target) {
@@ -420,7 +1055,10 @@
 
   // 新建项目
   var mask = $("mask");
-  $("newProject").addEventListener("click", function () { mask.classList.add("show"); $("f-title").focus(); });
+  function openNewProject() { mask.classList.add("show"); $("f-title").focus(); }
+  $("newProject").addEventListener("click", openNewProject);
+  // 左侧列表底部的固定快捷入口,同一个弹窗
+  $("newProject2").addEventListener("click", openNewProject);
   $("cancelModal").addEventListener("click", function () { mask.classList.remove("show"); });
   mask.addEventListener("click", function (e) { if (e.target === mask) mask.classList.remove("show"); });
   document.addEventListener("keydown", function (e) { if (e.key === "Escape") mask.classList.remove("show"); });
@@ -581,16 +1219,23 @@
     load();
   });
 
-  // ---------- 删除照片(所选批量或单张,连云端图片一起删) ----------
+  // ---------- 删除照片:移入回收站(云端原图保留,彻底删除在回收站里做) ----------
   function delPhotos(ids) {
     fetch("/api/photo", {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ids: ids, destroy: true }),
+      body: JSON.stringify({ ids: ids }),
     }).then(function (r) { return r.json(); }).then(function (res) {
       if (res.error) { toast("删除失败:" + res.error); return; }
-      var ok = (res.results || []).filter(function (x) { return x.removed; }).length;
-      toast("已删除 " + ok + "/" + ids.length + " 张(云端图片已同步清理)");
+      var rs = res.results || [];
+      var ok = rs.filter(function (x) { return x.ok; }).length;
+      // 联动清理要说清楚,否则用户不知道封面/精选被动了
+      var extra = [];
+      if (rs.some(function (x) { return x.heroRemoved; })) extra.push("已移出首页 Hero");
+      var covers = rs.filter(function (x) { return x.coverCleared; }).map(function (x) { return x.coverCleared; });
+      if (covers.length) extra.push("已清空 " + covers.join("、") + " 的项目封面");
+      toast("已移入回收站 " + ok + "/" + ids.length + " 张" +
+        (extra.length ? "(" + extra.join(";") + ")" : "") + " —— 云端原图仍在");
       state.selected.clear();
       load();
     }).catch(function (e) { toast("删除失败:" + e.message); });
@@ -599,20 +1244,26 @@
   $("selDelete").addEventListener("click", function () {
     var n = state.selected.size;
     if (!n) return;
-    if (!confirm("确定删除所选 " + n + " 张照片?\n将同时从 Cloudinary 删除云端图片,不可恢复。")) return;
+    if (!confirm("把所选 " + n + " 张照片移入回收站?\n可以在回收站恢复;只有「彻底删除」才会删云端原图。")) return;
     delPhotos(Array.from(state.selected));
   });
 
-  $("selFeatured").addEventListener("click", function () {
+  // 设为/取消精选共用一个入口
+  function setFeatured(value) {
     var ids = Array.from(state.selected);
     if (!ids.length) return;
     fetch("/api/featured-flag", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ids: ids, value: true }),
-    }).then(function () { toast("已把 " + ids.length + " 张设为精选(上首页精选墙)"); state.selected.clear(); load(); })
-      .catch(function (e) { toast("操作失败:" + e.message); });
-  });
+      body: JSON.stringify({ ids: ids, value: value }),
+    }).then(function () {
+      toast("已把 " + ids.length + " 张" + (value ? "设为精选(上首页精选墙)" : "取消精选"));
+      state.selected.clear();
+      load();
+    }).catch(function (e) { toast("操作失败:" + e.message); });
+  }
+  $("selFeatured").addEventListener("click", function () { setFeatured(true); });
+  $("selUnfeatured").addEventListener("click", function () { setFeatured(false); });
 
   // ---------- 加入首页 Hero(拖拽/点选后点 Hero 卡片) ----------
   function addHero(ids) {
@@ -634,6 +1285,280 @@
     }).catch(function (e) { toast("加入失败:" + e.message); });
   }
 
+  // ---------- 弹窗通用:点遮罩/取消/ESC 关闭 ----------
+  var maskStack = [];
+  function openMask(id) {
+    $(id).classList.add("show");
+    maskStack.push(id);
+  }
+  function closeMask(id) {
+    $(id).classList.remove("show");
+    maskStack = maskStack.filter(function (x) { return x !== id; });
+  }
+  document.querySelectorAll(".mask").forEach(function (m) {
+    // 点遮罩空白处关闭(点内容区不关)
+    m.addEventListener("click", function (e) { if (e.target === m) closeMask(m.id); });
+  });
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && maskStack.length) closeMask(maskStack[maskStack.length - 1]);
+  });
+
+  // 弹窗里统一用 PUT JSON,拿到 error 就抛
+  function putJson(url, body) {
+    return fetch(url, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }).then(function (r) { return r.json(); }).then(function (res) {
+      if (res.error) throw new Error(res.error);
+      return res;
+    });
+  }
+
+  // ---------- 单张照片信息编辑 ----------
+  var editCtx = null; // { id, collection }
+
+  function openEdit(p, collection) {
+    var isHero = collection === "featured";
+    editCtx = { id: p.id, collection: collection };
+    $("editTitle").textContent = isHero ? "编辑 Hero 轮播条目" : "编辑照片信息";
+    $("e-exifWrap").style.display = isHero ? "none" : "";
+    // 地点/日期/标签只存在于 photos 集合(featured 的文件里没有这些键)
+    ["e-loc", "e-date", "e-tags"].forEach(function (id) {
+      $(id).closest(".field").style.display = isHero ? "none" : "";
+    });
+    $("e-title").value = p.title || "";
+    $("e-alt").value = p.alt || "";
+    $("e-loc").value = p.location || "";
+    $("e-date").value = p.date || "";
+    // tags 存的是数组,编辑框里用「, 」串起来
+    $("e-tags").value = (Array.isArray(p.tags) ? p.tags : []).join(", ");
+    var ex = p.exif || {};
+    $("e-camera").value = ex.camera || "";
+    $("e-lens").value = ex.lens || "";
+    $("e-focal").value = ex.focalLength || "";
+    $("e-aperture").value = ex.aperture || "";
+    $("e-shutter").value = ex.shutter || "";
+    $("e-iso").value = ex.iso == null ? "" : ex.iso;
+    $("e-showexif").checked = p.showExif === true;
+    openMask("maskEdit");
+    $("e-title").focus();
+  }
+
+  $("e-cancel").addEventListener("click", function () { closeMask("maskEdit"); });
+  $("e-save").addEventListener("click", function () {
+    if (!editCtx) return;
+    var isHero = editCtx.collection === "featured";
+    var body = {
+      id: editCtx.id,
+      collection: editCtx.collection,
+      title: $("e-title").value,
+      alt: $("e-alt").value,
+    };
+    if (!isHero) {
+      body.location = $("e-loc").value;
+      body.date = $("e-date").value;
+      body.tags = $("e-tags").value.split(",").map(function (s) { return s.trim(); }).filter(Boolean);
+      body.exif = {
+        camera: $("e-camera").value,
+        lens: $("e-lens").value,
+        focalLength: $("e-focal").value,
+        aperture: $("e-aperture").value,
+        shutter: $("e-shutter").value,
+        iso: $("e-iso").value,
+      };
+      body.showExif = $("e-showexif").checked;
+    }
+    var btn = this;
+    btn.disabled = true;
+    putJson("/api/photo", body).then(function () {
+      toast("已保存(推送后线上生效)");
+      closeMask("maskEdit");
+      load();
+    }).catch(function (e) { toast("保存失败:" + e.message); })
+      .finally(function () { btn.disabled = false; });
+  });
+
+  // ---------- 项目设置 ----------
+  var projCtx = null;
+
+  function openProjSettings() {
+    var proj = state.projects.find(function (x) { return x.id === state.current; });
+    if (!proj) { toast("先在左侧选中一个项目"); return; }
+    projCtx = proj.id;
+    $("p-title").value = proj.title || "";
+    $("p-desc").value = proj.description || "";
+    $("p-date").value = proj.date || "";
+    $("p-loc").value = proj.location || "";
+    $("p-cover").value = proj.coverImage || "";
+    $("p-vis").value = proj.visibility || "public";
+    // 封面下拉:当前项目的照片文件名(选中即填进去)
+    var dl = $("p-cover-list");
+    dl.innerHTML = "";
+    state.photos.filter(function (x) { return x.project === proj.id; })
+      .forEach(function (x) {
+        var o = document.createElement("option");
+        o.value = x.filename || "";
+        o.label = x.title || x.filename || "";
+        dl.appendChild(o);
+      });
+    openMask("maskProj");
+  }
+
+  $("projSettings").addEventListener("click", openProjSettings);
+  $("p-cancel").addEventListener("click", function () { closeMask("maskProj"); });
+  $("p-save").addEventListener("click", function () {
+    if (!projCtx) return;
+    var title = $("p-title").value.trim();
+    if (!title) { toast("项目名称不能为空"); return; }
+    var btn = this;
+    btn.disabled = true;
+    putJson("/api/project", {
+      id: projCtx,
+      title: title,
+      description: $("p-desc").value,
+      date: $("p-date").value,
+      location: $("p-loc").value,
+      coverImage: $("p-cover").value,
+      visibility: $("p-vis").value,
+    }).then(function () {
+      toast("项目设置已保存(推送后线上生效)");
+      closeMask("maskProj");
+      load();
+    }).catch(function (e) { toast("保存失败:" + e.message); })
+      .finally(function () { btn.disabled = false; });
+  });
+
+  $("p-del").addEventListener("click", function () {
+    if (!projCtx) return;
+    var proj = state.projects.find(function (x) { return x.id === projCtx; });
+    var n = proj ? proj.count : 0;
+    // 二次确认:项目删除会连同其下所有照片的数据文件一起进回收站
+    if (!confirm("删除整个项目「" + (proj ? proj.title || proj.id : projCtx) + "」?\n" +
+      "项目下的 " + n + " 张照片会一并移入回收站(可在回收站恢复)。")) return;
+    if (!confirm("再确认一次:确定删除「" + (proj ? proj.title || proj.id : projCtx) + "」?")) return;
+    fetch("/api/project", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: projCtx }),
+    }).then(function (r) { return r.json(); }).then(function (res) {
+      if (res.error) { toast("删除失败:" + res.error); return; }
+      toast("已删除项目,照片已移入回收站");
+      closeMask("maskProj");
+      state.current = null;
+      load();
+    }).catch(function (e) { toast("删除失败:" + e.message); });
+  });
+
+  // ---------- 批量编辑(标签 / 地点) ----------
+  function openBatchEdit() {
+    var n = state.selected.size;
+    if (!n) return;
+    $("b-n").textContent = "(已选 " + n + " 张)";
+    $("b-tags").value = "";
+    $("b-loc").value = "";
+    $("b-tags-clear").checked = false;
+    $("b-loc-clear").checked = false;
+    $("b-showexif").value = ""; // 默认「不修改」
+    openMask("maskBatch");
+  }
+
+  $("selBatch").addEventListener("click", openBatchEdit);
+  $("b-cancel").addEventListener("click", function () { closeMask("maskBatch"); });
+  // 勾了「清空」就把输入框禁用掉,避免两种意图打架
+  $("b-tags-clear").addEventListener("change", function () {
+    $("b-tags").disabled = this.checked;
+    if (this.checked) $("b-tags").value = "";
+  });
+  $("b-loc-clear").addEventListener("change", function () {
+    $("b-loc").disabled = this.checked;
+    if (this.checked) $("b-loc").value = "";
+  });
+  $("b-save").addEventListener("click", function () {
+    var ids = Array.from(state.selected);
+    if (!ids.length) return;
+    var set = {};
+    if ($("b-tags-clear").checked) set.tags = [];
+    else if ($("b-tags").value.trim()) {
+      set.tags = $("b-tags").value.split(",").map(function (s) { return s.trim(); }).filter(Boolean);
+    }
+    if ($("b-loc-clear").checked) set.location = "";
+    else if ($("b-loc").value.trim()) set.location = $("b-loc").value.trim();
+    // 三态:"" = 不修改(不传这个键), "1" = 打开, "0" = 关闭
+    if ($("b-showexif").value !== "") set.showExif = $("b-showexif").value === "1";
+    if (!Object.keys(set).length) { toast("没有要修改的内容"); return; }
+
+    var btn = this;
+    btn.disabled = true;
+    fetch("/api/photos-batch", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids: ids, set: set }),
+    }).then(function (r) { return r.json(); }).then(function (res) {
+      if (res.error) { toast("失败:" + res.error); return; }
+      var bad = (res.results || []).filter(function (x) { return !x.ok; });
+      toast("已更新 " + (ids.length - bad.length) + "/" + ids.length + " 张" +
+        (bad.length ? "(失败 " + bad.length + " 张)" : "") + " —— 推送后线上生效");
+      closeMask("maskBatch");
+      state.selected.clear();
+      load();
+    }).catch(function (e) { toast("失败:" + e.message); })
+      .finally(function () { btn.disabled = false; });
+  });
+
+  // ---------- 全局设置(站点信息 + 上传配置) ----------
+  function openSiteSettings() {
+    fetch("/api/site-settings").then(function (r) { return r.json(); }).then(function (s) {
+      $("s-title").value = s.title || "";
+      $("s-desc").value = s.description || "";
+      $("s-logo").value = s.logo || "";
+      $("s-footer").value = s.footerText || "";
+      $("s-icp").value = s.icp || "";
+      $("s-xhs").value = s.socialXhs || "";
+      $("s-ig").value = s.socialInstagram || "";
+      $("s-mail").value = s.contactEmail || "";
+    }).catch(function () { toast("读取站点设置失败"); });
+
+    fetch("/api/admin-settings").then(function (r) { return r.json(); }).then(function (a) {
+      $("s-compress").checked = !!a.autoCompress;
+      $("s-threshold").value = a.compressThresholdMB;
+      $("s-webp").checked = !!a.autoWebp;
+    }).catch(function () {});
+
+    openMask("maskSite");
+  }
+
+  $("siteSettings").addEventListener("click", openSiteSettings);
+  $("s-cancel").addEventListener("click", function () { closeMask("maskSite"); });
+  $("s-save").addEventListener("click", function () {
+    var btn = this;
+    btn.disabled = true;
+    Promise.all([
+      putJson("/api/site-settings", {
+        title: $("s-title").value,
+        description: $("s-desc").value,
+        logo: $("s-logo").value,
+        footerText: $("s-footer").value,
+        icp: $("s-icp").value,
+        socialXhs: $("s-xhs").value,
+        socialInstagram: $("s-ig").value,
+        contactEmail: $("s-mail").value,
+      }),
+      putJson("/api/admin-settings", {
+        autoCompress: $("s-compress").checked,
+        compressThresholdMB: $("s-threshold").value,
+        autoWebp: $("s-webp").checked,
+      }),
+    ]).then(function (rs) {
+      // 站名改了顺便更新后台自己的标题,一眼能看出生效
+      var t = rs[0] && rs[0].title;
+      if (t) $("adminTitle").textContent = t + " · 后台管理";
+      toast("已保存 —— 站点信息推送后生效,上传配置立即生效");
+      closeMask("maskSite");
+    }).catch(function (e) { toast("保存失败:" + e.message); })
+      .finally(function () { btn.disabled = false; });
+  });
+
   // ---------- 推送上线:构建检查 → commit → push ----------
   var maskPush = $("maskPush");
   $("gitPush").addEventListener("click", function () {
@@ -652,15 +1577,64 @@
       body: JSON.stringify({ message: $("push-msg").value.trim() }),
     }).then(function (r) { return r.json(); }).then(function (res) {
       $("push-log").textContent = (res.log || []).join("\n");
-      toast(res.ok ? "已推送上线,Cloudflare 正在自动部署" : "推送失败,查看弹窗日志");
+      if (res.ok) {
+        var h = res.summary && res.summary.hash ? " commit " + res.summary.hash : "";
+        toast("✓ 已推送" + h + ",Cloudflare 正在自动部署");
+        load(); // 刷新后未推送改动数归零
+      } else {
+        // 失败时把首行错误摆到 toast 上,不用翻弹窗
+        var first = (res.log || []).filter(function (l) { return /错误|失败|error/i.test(l); })[0];
+        toast("✗ 推送失败:" + (first || "查看弹窗日志").slice(0, 60));
+      }
     }).catch(function (e) {
       $("push-log").textContent = "请求失败:" + e.message;
+      toast("✗ 推送失败:" + e.message);
     }).finally(function () { btn.disabled = false; });
+  });
+
+  // ---------- 搜索 / 视图切换 / 批量移动 / Git 状态 ----------
+  $("searchBox").addEventListener("input", function () {
+    state.query = this.value;
+    render();
+  });
+
+  $("viewToggle").addEventListener("click", function (e) {
+    var b = e.target.closest("button[data-v]");
+    if (!b) return;
+    state.view = b.dataset.v;
+    Array.prototype.forEach.call(this.querySelectorAll("button"), function (x) {
+      x.classList.toggle("on", x === b);
+    });
+    render();
+  });
+
+  $("selMove").addEventListener("change", function () {
+    var target = this.value;
+    this.value = "";
+    if (!target) return;
+    var ids = Array.from(state.selected);
+    if (!ids.length) return;
+    move(ids, target);
+  });
+
+  $("gitChip").addEventListener("click", function () {
+    $("push-log").textContent = "尚未执行";
+    $("maskPush").classList.add("show");
   });
 
   $("refresh").addEventListener("click", load);
   $("selAll").addEventListener("click", function () {
-    state.selected = new Set(photosOf(state.current).map(function (p) { return p.id; }));
+    // 只选当前可见(搜索过滤后的)那些,符合「全选我看到的」直觉
+    var items = photosOf(state.current);
+    var q = state.query.trim().toLowerCase();
+    if (q) {
+      items = items.filter(function (p) {
+        return [p.title, p.id, p.filename].some(function (v) {
+          return String(v || "").toLowerCase().indexOf(q) >= 0;
+        });
+      });
+    }
+    state.selected = new Set(items.map(function (p) { return p.id; }));
     render();
   });
   $("selClear").addEventListener("click", function () { state.selected.clear(); render(); });

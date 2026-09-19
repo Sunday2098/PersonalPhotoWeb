@@ -6,27 +6,39 @@ import { getCollection } from "astro:content";
 import BaseLayout from "../../layouts/BaseLayout.astro";
 import Lightbox from "../../components/Lightbox.astro";
 import { cloudinaryUrl, cloudinarySrcset } from "../../lib/images";
+import { byOrderThenDate, isPublic } from "../../lib/content";
+import { getSiteSettings } from "../../lib/site";
 
 export async function getStaticPaths() {
   const projects = await getCollection("projects");
-  return projects.map((p) => ({
-    params: { slug: p.id },
-    props: { project: p },
-  }));
+  // 私密/草稿项目不生成页面 —— 线上没有这个地址,直链也打不开
+  return projects
+    .filter((p) => isPublic(p.data.visibility))
+    .map((p) => ({
+      params: { slug: p.id },
+      props: { project: p },
+    }));
 }
 
 const { project } = Astro.props;
 
+// 顺序 = 后台拖拽的顺序(老数据没有 order 时按日期倒序,与改动前一致)
 const photos = (await getCollection("photos"))
   .filter((p) => p.data.project === project.id)
-  .sort((a, b) => (b.data.date ?? "").localeCompare(a.data.date ?? ""));
+  .sort(byOrderThenDate);
 
-// 灯箱不再显示拍摄信息,所以不传 exif(内容 frontmatter 里的数据没删)
-const lightboxPhotos = photos.map((p) => ({
-  src: cloudinaryUrl(p.data.filename, 1600),
-  title: p.data.title ?? "",
-  alt: p.data.alt ?? "",
-}));
+// 标签筛选条:聚合本项目所有照片的标签,出现次数多的排前面
+// (次数相同按字典序,保证构建结果稳定、两次构建顺序一致)
+const tagCounts = new Map<string, number>();
+for (const p of photos) {
+  for (const raw of p.data.tags ?? []) {
+    const t = raw.trim();
+    if (t) tagCounts.set(t, (tagCounts.get(t) ?? 0) + 1);
+  }
+}
+const tags = [...tagCounts.entries()]
+  .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "zh"))
+  .map(([name, count]) => ({ name, count }));
 
 // 标题下方的一句话简介与「拍摄时间 · 地点」,留空则不渲染该行
 const description = project.data.description?.trim() ?? "";
@@ -39,11 +51,31 @@ const meta = [project.data.date, project.data.location]
 const labelFor = (p: (typeof photos)[number], i: number) =>
   p.data.alt?.trim() || `${project.data.title} 第 ${i + 1} 张`;
 
+// 灯箱里那行拍摄参数。只在后台开了「显示拍摄参数」时才产出内容 ——
+// 缺省(没这一行的老照片)返回 undefined,属性整个不渲染,线上视觉与之前一致。
+// 字段按编辑面板的顺序拼,空的自动略过:所以没填镜头的照片就是
+// 「NIKON Z 5 · 44mm · f/4 · 1/125 · ISO 320」,不会被空段落撑出多余的分隔点。
+const exifLineFor = (p: (typeof photos)[number]) => {
+  if (p.data.showExif !== true) return undefined;
+  const e = p.data.exif ?? {};
+  const parts = [
+    e.camera,
+    e.lens,
+    e.focalLength,
+    e.aperture,
+    e.shutter,
+    typeof e.iso === "number" ? `ISO ${e.iso}` : "",
+  ]
+    .map((v) => (typeof v === "string" ? v.trim() : ""))
+    .filter(Boolean);
+  return parts.length ? parts.join(" · ") : undefined;
+};
+
 // 与下方 .max-w-5xl px-5 + gap-6 的三栏瀑布流对应,让浏览器按真实显示宽度挑档
 const COLUMN_SIZES = "(min-width: 1024px) 312px, (min-width: 640px) 50vw, 100vw";
 ---
 
-<BaseLayout title={`${project.data.title} · 夏至未至`}>
+<BaseLayout title={`${project.data.title} · ${(await getSiteSettings()).title}`}>
   <article class="mx-auto w-full max-w-5xl px-5">
     <nav class="pt-2 text-xs text-mist">
       <a href="/projects/" class="transition-colors hover:text-ink">← 全部项目</a>
@@ -55,14 +87,38 @@ const COLUMN_SIZES = "(min-width: 1024px) 312px, (min-width: 640px) 50vw, 100vw"
       {meta && <p class="mt-4 text-xs tracking-[0.15em] text-mist">{meta}</p>}
     </header>
 
+    <!-- 标签筛选:多选之间是「同时满足」(AND),再点一下取消该标签 -->
+    {
+      tags.length > 0 && (
+        <div id="tag-filter" class="mb-8 flex flex-wrap items-center gap-2">
+          <span class="mr-1 text-xs tracking-[0.15em] text-mist">标签</span>
+          {tags.map((t) => (
+            <button type="button" class="tag-chip" data-tag={t.name} aria-pressed="false">
+              {t.name}
+              <span class="tag-n">{t.count}</span>
+            </button>
+          ))}
+          <button type="button" id="tag-clear" class="ml-1 hidden text-xs text-mist underline underline-offset-4">
+            清除
+          </button>
+        </div>
+      )
+    }
+    <p id="photo-empty" class="hidden pb-28 text-center text-sm text-mist">
+      没有同时带着这些标签的照片
+    </p>
+
     <!-- 照片集:瀑布流保留原始比例(不裁切)。用 columns 而非 grid:grid 每行高度
          由该行最高的图决定,同行的横图下方会空出一块,比例差异越大空白越多。 -->
-    <div class="columns-1 gap-6 pb-28 sm:columns-2 lg:columns-3">
+    <div id="photo-grid" class="columns-1 gap-6 pb-28 sm:columns-2 lg:columns-3">
       {
         photos.map((p, i) => (
           <button
             class="lightbox-trigger mb-6 block w-full break-inside-avoid text-left"
-            data-index={i}
+            data-big={cloudinaryUrl(p.data.filename, 1600)}
+            data-title={p.data.title?.trim() || undefined}
+            data-tags={JSON.stringify((p.data.tags ?? []).map((t) => t.trim()).filter(Boolean))}
+            data-exif={exifLineFor(p)}
             aria-label={`查看大图：${labelFor(p, i)}`}
           >
             <div
@@ -75,7 +131,7 @@ const COLUMN_SIZES = "(min-width: 1024px) 312px, (min-width: 640px) 50vw, 100vw"
                 sizes={COLUMN_SIZES}
                 width={p.data.width}
                 height={p.data.height}
-                alt=""
+                alt={p.data.alt ?? p.data.title ?? ""}
                 loading="lazy"
                 decoding="async"
                 class="h-auto w-full"
@@ -90,5 +146,57 @@ const COLUMN_SIZES = "(min-width: 1024px) 312px, (min-width: 640px) 50vw, 100vw"
     </div>
   </article>
 
-  <Lightbox photos={lightboxPhotos} />
+  <Lightbox photos={[]} />
+
+  <script is:inline>
+    // 标签筛选:纯前端隐藏瓦片(不重新请求图片,切回来是瞬时的)。
+    // 标签用 JSON 存在 data-tags 上:标签内容不受分隔符限制
+    (function () {
+      var bar = document.getElementById("tag-filter");
+      var grid = document.getElementById("photo-grid");
+      var empty = document.getElementById("photo-empty");
+      var clear = document.getElementById("tag-clear");
+      if (!bar || !grid) return;
+
+      var chips = Array.prototype.slice.call(bar.querySelectorAll(".tag-chip"));
+      var tiles = Array.prototype.slice.call(grid.querySelectorAll(".lightbox-trigger"));
+      var active = [];
+
+      function apply() {
+        var i, k, tags, ok, shown = 0;
+        for (i = 0; i < tiles.length; i++) {
+          tags = JSON.parse(tiles[i].dataset.tags || "[]");
+          ok = true;
+          for (k = 0; k < active.length; k++) {
+            if (tags.indexOf(active[k]) < 0) { ok = false; break; }
+          }
+          // 用行内样式而不是 hidden 属性:瓦片带 Tailwind 的 .block,
+          // 作者样式的 display:block 会盖掉 [hidden] 的浏览器默认 display:none
+          tiles[i].style.display = ok ? "" : "none";
+          if (ok) shown++;
+        }
+        chips.forEach(function (c) {
+          var on = active.indexOf(c.dataset.tag) >= 0;
+          c.classList.toggle("on", on);
+          c.setAttribute("aria-pressed", on ? "true" : "false");
+        });
+        clear.classList.toggle("hidden", active.length === 0);
+        empty.classList.toggle("hidden", shown > 0);
+      }
+
+      chips.forEach(function (c) {
+        c.addEventListener("click", function () {
+          var t = c.dataset.tag;
+          var i = active.indexOf(t);
+          if (i >= 0) active.splice(i, 1);
+          else active.push(t);
+          apply();
+        });
+      });
+      clear.addEventListener("click", function () {
+        active = [];
+        apply();
+      });
+    })();
+  </script>
 </BaseLayout>

@@ -1,16 +1,17 @@
 ---
 import "../styles/global.css";
-import { CONTACTS } from "../config";
+import { getSiteSettings } from "../lib/site";
 
 interface Props {
   title?: string;
   description?: string;
 }
 
-const {
-  title = "夏至未至",
-  description = "用照片记录走过的路、看过的风景和日常的瞬间。",
-} = Astro.props;
+// 站点信息来自 src/content/site/site.md(后台「全局设置」可改),
+// 留空时由 src/lib/site.ts 回落到 src/config.ts 里的默认值
+const site = await getSiteSettings();
+
+const { title = site.title, description = site.description } = Astro.props;
 
 const pathname = Astro.url.pathname.replace(/\/$/, "") || "/";
 
@@ -21,8 +22,7 @@ const nav = [
   { href: "/about/", label: "关于", match: (p: string) => p.startsWith("/about") },
 ];
 
-// 页脚联系方式:只渲染 href 填过的条目(在 src/config.ts 里改)
-const contacts = CONTACTS.filter((c) => c.href.trim());
+const contacts = site.contacts;
 ---
 
 <!doctype html>
@@ -54,7 +54,10 @@ const contacts = CONTACTS.filter((c) => c.href.trim());
   <body class="flex min-h-screen flex-col">
     <header class="mx-auto w-full max-w-5xl px-5">
       <div class="flex items-baseline justify-between py-10">
-        <a href="/" class="text-base font-medium tracking-wide">夏至未至</a>
+        <a href="/" class="text-base font-medium tracking-wide">
+          {site.logo && <img src={site.logo} alt="" class="mr-2 inline-block h-5 w-auto align-middle" />}
+          {site.title}
+        </a>
         <nav class="flex items-center gap-6">
           {
             nav.map((item) => (
@@ -112,7 +115,21 @@ const contacts = CONTACTS.filter((c) => c.href.trim());
             </div>
           )
         }
-        <p class="text-xs text-mist/70">© 2026 夏至未至</p>
+        <p class="text-xs text-mist/70">{site.footerText}</p>
+        {
+          site.icp && (
+            <p class="text-xs text-mist/50">
+              <a
+                href="https://beian.miit.gov.cn/"
+                target="_blank"
+                rel="noopener"
+                class="transition-colors hover:text-ink dark:hover:text-neutral-100"
+              >
+                {site.icp}
+              </a>
+            </p>
+          )
+        }
       </div>
     </footer>
 

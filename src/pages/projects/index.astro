@@ -3,10 +3,13 @@
 import { getCollection } from "astro:content";
 import BaseLayout from "../../layouts/BaseLayout.astro";
 import ProjectCard from "../../components/ProjectCard.astro";
+import { byOrderThenDate, isPublic } from "../../lib/content";
+import { getSiteSettings } from "../../lib/site";
 
-const projects = (await getCollection("projects")).sort((a, b) =>
-  (b.data.date ?? "").localeCompare(a.data.date ?? ""),
-);
+// 私密/草稿项目不列出来(后台拖拽排序决定展示顺序)
+const projects = (await getCollection("projects"))
+  .filter((p) => isPublic(p.data.visibility))
+  .sort(byOrderThenDate);
 
 // 封面图的宽高与主色不存在项目 frontmatter 里(那里只有文件名),
 // 按文件名到 photos 集合取,取不到就留空(图片照常显示,只是没有占位底色)
@@ -19,7 +22,7 @@ const covers = projects.map((p) => {
 });
 ---
 
-<BaseLayout title="项目 · 夏至未至">
+<BaseLayout title={`项目 · ${(await getSiteSettings()).title}`}>
   <section class="mx-auto w-full max-w-5xl px-5">
     <header class="pb-14 pt-4">
       <h1 class="text-2xl font-light tracking-wide dark:text-neutral-100">项目</h1>

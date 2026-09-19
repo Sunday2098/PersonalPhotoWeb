@@ -1,9 +1,12 @@
 ---
 // 关于我:个人介绍与摄影历程(PRD V1.1 §4.5)
 import BaseLayout from "../layouts/BaseLayout.astro";
+import { getSiteSettings } from "../lib/site";
+
+const site = await getSiteSettings();
 ---
 
-<BaseLayout title="关于 · 夏至未至">
+<BaseLayout title={`关于 · ${site.title}`}>
   <section class="mx-auto w-full max-w-3xl px-5 py-10">
     <!-- TODO: 放入你的肖像/拍摄中的身影照片,并取消下面的注释
     <Image

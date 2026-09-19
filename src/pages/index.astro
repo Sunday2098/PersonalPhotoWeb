@@ -11,21 +11,26 @@ import { getCollection } from "astro:content";
 import BaseLayout from "../layouts/BaseLayout.astro";
 import Lightbox from "../components/Lightbox.astro";
 import { cloudinaryUrl, cloudinarySrcset } from "../lib/images";
+import { byOrderThenDate, isPublic } from "../lib/content";
 
-const heroes = (await getCollection("featured")).sort((a, b) =>
-  (b.data.date ?? "").localeCompare(a.data.date ?? ""),
+// 后台可拖拽排序,顺序就是这里渲染的顺序
+const heroes = (await getCollection("featured")).sort(byOrderThenDate);
+
+const projects = await getCollection("projects");
+// 精选墙按项目可见性过滤 —— 私密项目的照片不能从首页泄漏出去。
+// 项目页已经过滤了,但精选墙是按 photo.featured 直接取的,漏了这里等于白设私密。
+const publicProjectIds = new Set(
+  projects.filter((p) => isPublic(p.data.visibility)).map((p) => p.id),
 );
 
 const picks = (await getCollection("photos"))
-  .filter((p) => p.data.featured === true)
-  .sort((a, b) => (b.data.date ?? "").localeCompare(a.data.date ?? ""))
+  .filter((p) => p.data.featured === true && publicProjectIds.has(p.data.project))
+  .sort(byOrderThenDate)
   .slice(0, 12);
 
 // 灯箱按钮的无障碍名称:照片标题普遍为空,用「所属项目 + 序号」兜底,
 // 否则读屏用户只会听到 12 遍一模一样的标签
-const projectTitles = new Map(
-  (await getCollection("projects")).map((p) => [p.id, p.data.title]),
-);
+const projectTitles = new Map(projects.map((p) => [p.id, p.data.title]));
 
 const heroCount = heroes.length;
 

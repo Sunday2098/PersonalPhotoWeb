@@ -58,6 +58,14 @@ a:hover {
   display: none;
 }
 
+/* 标注第一行标题 / 第二行拍摄参数(参数只在照片开了「显示拍摄参数」时出现) */
+.lb-caption .lb-title {
+  display: block;
+}
+.lb-caption .lb-exif {
+  @apply mt-1.5 block text-[11px] tabular-nums text-white/40;
+}
+
 /* 灯箱大图:放大模式(PRD V1.2 §4.4 右上角放大按钮,1x ↔ 2x) */
 .lb-zoomed {
   transform: scale(2);
@@ -113,6 +121,23 @@ a:hover {
   .photo-tile:hover img {
     transform: none;
   }
+}
+
+/* 项目页标签筛选条:未选中是细边框,选中用墨色实底(与站点其它交互同一套语言) */
+.tag-chip {
+  @apply inline-flex items-center gap-1.5 rounded-full border border-neutral-200/90 px-3 py-1
+    text-xs text-mist transition-colors hover:border-neutral-400 hover:text-ink
+    dark:border-neutral-800 dark:hover:border-neutral-600 dark:hover:text-neutral-100;
+}
+.tag-chip.on {
+  @apply border-ink bg-ink text-white dark:border-neutral-100 dark:bg-neutral-100 dark:text-ink;
+}
+/* 计数徽标:选中态下要跟着反色,否则灰字压在实底上看不清 */
+.tag-chip .tag-n {
+  @apply text-[10px] tabular-nums text-mist/70;
+}
+.tag-chip.on .tag-n {
+  @apply text-white/60 dark:text-ink/50;
 }
 
 /* 长文段落(关于页自我介绍) */
