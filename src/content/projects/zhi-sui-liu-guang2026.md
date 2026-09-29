@@ -1,9 +1,8 @@
 ---
 id: zhi-sui-liu-guang2026
 title: 稚岁流光2026
-description: 
 coverImage: DSC_7991-2.jpg
-date: "202605"
+date: 2026年5月
 location: 武汉
 order: 1
 ---
