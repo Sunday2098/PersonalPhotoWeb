@@ -1,5 +1,5 @@
 ---
-id: Jiang-xi-sheng-bo-wu-guan
+id: jiang-xi-sheng-bo-wu-guan
 title: 江西省博物馆
 description: 江博藏岁月，光影阅赣鄱。
 coverImage: DSC_0539.jpg
