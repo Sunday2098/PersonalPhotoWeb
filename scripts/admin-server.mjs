@@ -159,15 +159,36 @@ async function movePhotos(photoIds, targetProject) {
   return results;
 }
 
+// 项目 id 必须同时是「合法文件名」和「合法 URL slug」。
+// 站点判「哪些照片属于这个项目」用的是 Astro 生成的集合 id —— 那个 id 由**文件名**
+// slug 化而来;而后台从列表到写照片记的都是 frontmatter 里的 id。两者只要差一个字符,
+// 项目页就会渲染成空页:标题、简介、封面都在,照片一张都进不来(江西省博物馆、云冈石窟都栽过)。
+// 路由层收参时已经小写一次,这里再兜一道 —— 不变量该落在真正写数据的地方,
+// 这样别的脚本将来直接调 createProject 也绕不过去。
+function slugifyProjectId(raw) {
+  return String(raw ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
 // 新建项目:frontmatter 与现有项目 .md 同构,正文留占位
 async function createProject({ id, title, description = "", date = "", location = "", coverImage = "" }) {
   const all = await listProjects();
+  // 归一化后再落盘:文件名、frontmatter 的 id、照片里的 project 字段由此保证三者一致
+  const clean = slugifyProjectId(id);
+  if (!clean) {
+    throw new Error(
+      "项目 id 不能为空,且只能用英文字母、数字和连字符(中文标题请另起一个英文 id,如 jiang-xi-bo-wu-guan)",
+    );
+  }
   const usedIds = new Set(all.map((p) => p.id));
-  if (usedIds.has(id)) throw new Error(`项目 id 已存在:${id}`);
+  if (usedIds.has(clean)) throw new Error(`项目 id 已存在:${clean}`);
   const order = nextOrder(all);
   const frontmatter = [
     "---",
-    `id: ${yamlStr(id)}`,
+    `id: ${yamlStr(clean)}`,
     `title: ${yamlStr(title)}`,
     `description: ${yamlStr(description)}`,
     `coverImage: ${coverImage ? yamlStr(coverImage) : '""'}`,
@@ -177,8 +198,8 @@ async function createProject({ id, title, description = "", date = "", location 
     "---",
     "",
   ].join("\n");
-  await writeFile(path.join(projectsDir, `${id}.md`), frontmatter, "utf8");
-  return { id };
+  await writeFile(path.join(projectsDir, `${clean}.md`), frontmatter, "utf8");
+  return { id: clean };
 }
 
 // ---------- 添加照片(逻辑与 scripts/add-photos.mjs 一致) ----------
